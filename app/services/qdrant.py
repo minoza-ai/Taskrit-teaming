@@ -55,12 +55,12 @@ def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
 
 def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
     """능력치 벡터 유사도 검색."""
-    results = qdrant.search(
+    results = qdrant.query_points(
         collection_name=ABILITY_COLLECTION,
-        query_vector=vector,
+        query=vector,
         limit=limit,
         score_threshold=0.5,
-    )
+    ).points
     return [
         {
             "abilityId": str(hit.id),
@@ -73,12 +73,12 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
 
 def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
     """요구 능력치 벡터 유사도 검색."""
-    results = qdrant.search(
+    results = qdrant.query_points(
         collection_name=REQUIREMENT_COLLECTION,
-        query_vector=vector,
+        query=vector,
         limit=limit,
         score_threshold=0.5,
-    )
+    ).points
     return [
         {
             "requirementId": str(hit.id),

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 client = genai.Client(api_key=settings.geminiApi)
 
-EMBEDDING_MODEL = "text-embedding-004"
+EMBEDDING_MODEL = "gemini-embedding-2-preview"
 
 DECOMPOSE_SYSTEM = (
     "You are a skill decomposition engine. "
@@ -58,8 +58,8 @@ async def _retryOnQuota(fn, is_embedding=False, text=""):
             else:
                 logger.error(f"Gemini API 최종 실패, 폴백 동작 적용: {e}")
                 if is_embedding:
-                    # Mock vector (768 dim)
-                    return [0.01] * 768
+                    # Mock vector (3072 dim)
+                    return [0.01] * 3072
                 else:
                     # Mock json response
                     mock_resp = type("MockResp", (), {"text": '["Python", "Backend", "API Server", "System Architecture"]'})
@@ -70,7 +70,7 @@ async def _retryOnQuota(fn, is_embedding=False, text=""):
 async def decomposeAbilities(text: str) -> list[str]:
     """능력치 원문 → 단일 능력치 리스트 (정확도 우선, low temperature)."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=DECOMPOSE_SYSTEM,
@@ -83,7 +83,7 @@ async def decomposeAbilities(text: str) -> list[str]:
 async def decomposeRequirements(text: str) -> list[str]:
     """에셋 설명 → 요구 능력치 리스트."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=REQUIREMENT_SYSTEM,
@@ -96,7 +96,7 @@ async def decomposeRequirements(text: str) -> list[str]:
 async def decomposeTaskRequest(text: str) -> list[str]:
     """태스크 요청 → 필요 능력치 리스트 (다양성 위해 mid temperature)."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=TASK_DECOMPOSE_SYSTEM,
@@ -117,13 +117,11 @@ async def embedText(text: str) -> list[float]:
 
 
 async def embedTexts(texts: list[str]) -> list[list[float]]:
-    """텍스트 리스트 → 벡터 임베딩 리스트 (배치 — 1회 API 호출)."""
-    result = await _retryOnQuota(lambda: client.models.embed_content(
-        model=EMBEDDING_MODEL,
-        contents=texts,
-    ), is_embedding=True)
-    if isinstance(result, list): return [result for _ in texts] # fallback mock vectors
-    return [e.values for e in result.embeddings]
+    """텍스트 리스트 → 벡터 임베딩 리스트 (순차)."""
+    results = []
+    for t in texts:
+        results.append(await embedText(t))
+    return results
 
 
 def _parseJsonArray(text: str) -> list[str]:

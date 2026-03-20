@@ -22,12 +22,11 @@ async def matchForTask(
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
     """
+    # 배치 임베딩 — 모든 능력치를 1회 API 호출로 벡터화
+    vectors = await gemini.embedTexts(requiredSkills)
+
     results = []
-
-    for skill in requiredSkills:
-        # 임베딩
-        vector = await gemini.embedText(skill)
-
+    for skill, vector in zip(requiredSkills, vectors):
         # 2차: 벡터 유사도 검색
         hits = qdrantService.searchAbilities(vector, limit=30)
         if not hits:
@@ -113,9 +112,11 @@ async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int,
     if not reqs:
         return None
 
-    # 요구 능력치 중 첫 번째에 대해 능동 계정 검색
-    for req in reqs:
-        vector = await gemini.embedText(req.abilityText)
+    # 요구 능력치를 배치 임베딩
+    reqTexts = [req.abilityText for req in reqs]
+    reqVectors = await gemini.embedTexts(reqTexts)
+
+    for vector in reqVectors:
         hits = qdrantService.searchAbilities(vector, limit=5)
         for hit in hits:
             account = await db.get(Account, hit["accountId"])

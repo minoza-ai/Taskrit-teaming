@@ -1,0 +1,93 @@
+프로젝트 Taskrit 팀 매칭 엔진 TeamingOn Engine
+
+
+
+1. System Overview
+
+본 마이크로서비스는 Taskrit 메인 백엔드(Node.js)와 통신하며, 사용자의 능력치 및 요구사항을 벡터화하고 하이브리드 검색을 통해 최적의 작업자(Person/AI) 및 에셋(Asset) 번들을 매칭하는 역할을 담당합니다.
+
+
+
+2. Tech Stack
+
+Rest API 마이크로서비스
+UUID v4
+파이썬3 FastAPI
+PostgreSQL 데이터베이스
+Gemini AI api (flash 사용)
+
+코딩 스타일 가이드: 서버 내부적으로 사용되는 이름은 카멜케이스, 외부에 노출되는 이름은 파스칼테이스. 간결하고 단순한 주석과 코드를 작성.
+
+
+
+3. DB Schema (PostgreSQL + pgvector)
+
+accounts: 계정 마스터 테이블 (하드 리미트 필터링 및 기본 메타데이터 저장)
+- accountID (UUID, Primary Key): 메인 백엔드의 user_uuid와 동기화
+- type (VARCHAR): 'human', 'agent', 'robot', 'asset' 중 하나로, 계정의 종류 구분
+- elo (INT): 기본값 1000부터 시작하며 계정의 평판 나타냄
+- abilityText (TEXT): 전체 능력치 혹은 에셋 설명 원문 (여러 하위 단일 능력치의 혼합물)
+- availability (BOOL): 현재 매칭 가용성 여부
+- cost (INT): 단가 또는 예산
+- joinDate (TIME): 가입일 (신규 보너스 계산용)
+
+abilities: 단일 능력치 테이블 (계정/에셋이 '할 수 있는 일'을 정의, N:1 with accounts)
+- abilityID (UUID, Primary Key): 단일 능력치의 ID
+- accountID (UUID, Foreign Key): 해당 능력치를 가진 계정의 ID
+- abilityText (VARCHAR): 단일 능력치 텍스트
+- embedding (VECTOR): 단일 능력치의 벡터 임베딩 값
+
+requirements: 특정 계정의 동작에 필요한 능력치 (에셋 타입을 동작시키기 위한 작업자의 조건, N:1 with accounts)
+- requirementID (UUID, Primary Key): 요구 능력치의 ID
+- accountID (UUID, Foreign Key): 해당 요구사항을 가진 계정의 ID
+- abilityText (VARCHAR): 요구 능력치 텍스트
+- embedding (VECTOR): 요구 능력치의 벡터 임베딩 값
+
+tasks: 태스크 이력 테이블 (난이도 설정을 위한 과거 태스크 난이도 기록)
+- taskID (UUID, Primary Key): 태스크 ID
+- accountID (UUID, Foreign Key): 의뢰자 계정 ID
+- request (TEXT): 의뢰 원문
+- requiredAbilities (JSONB 등): 필요한 능력치 ID 배열
+- requiredDate (INT): 마감기한 일수 (외적 난이도 요소)
+- requiredElo (INT): 평판 요구사항 (외적 난이도 요소)
+- requiredCost (INT): 단가 요구사항 (외적 난이도 요소)
+- elo (INT): 산정된 태스크 난이도
+- status (VARCHAR): 'pending', 'matched', 'completed', 'failed' 상태
+
+
+
+4. Workflows
+
+능력치 분해와 저장:
+AI api로 입력된 계정의 능력치 원문을 의미가 겹치지 않는 구체적인 기술 스택/직무 형태의 단일 능력치 리스트로 분해. (정확도를 위해 temperature low)
+분해된 단일 능력치를 의미 임베딩.
+단독 동작이 불가능한 타입(에셋)의 경우는 요구 능력치 리스트를 생성하여 별도로 임베딩.
+
+태스크 매칭:
+AI api로 사용자가 요청한 작업 텍스트를 작업을 완수하기 위해 필요한 단일 능력치 리스트로 분해/생성. (다양성을 위해 temperature middle)
+도출된 능력치들을 임베딩.
+각 단일 능력치마다 최적의 팀원을 매칭한다.
+- 1차 추출: 가용성, 단가, 계정 종류 등 하드 리미트로 거름
+- 2차 추출: 벡터 코사인 유사도로 능력치 리스트에서 기준치 이상으로 일치하는 항목을 추출. 만약 추출된 능력치의 소유자가 에셋 계정이라면 이를 다룰 수 있도록 요구 능력치를 지닌 능동 계정을 연결.
+- 3차 추출: 하이브리드 리랭킹. Score = W1 * 코사인 유사도 + W2 * elo + W3 * cost 효율성 + W4 * 신규 보너스. 인간 계정은 elo에 높은 가중치, 에이전트와 로봇은 유사도에 높은 가중치, 에셋은 비용 효율성에 높은 가중치.
+매칭된 결과 순위 리스트를 반환.
+
+평판 업데이트:
+태스크가 새로 생성되면 요구 능력치를 생성한 이후 기존 태스크에서 비슷한 태스크를 찾아 해당 elo를 기준으로 삼음.
+높은 신뢰도나 기한이 짧은 등 난이도를 높이는 요소에 따라 elo 점수 가감.
+테스크에 elo 점수를 할당하고 이후 작업 성공/실패에 따라 계정의 평판인 elo를 변동시킴.
+
+
+
+5. APIs
+계정 생성: UUID, type, abilityText을 받아 새 계정 생성
+계정 삭제: UUID를 받아 계정 삭제
+계정 조회: UUID를 받아 계정 정보 반환
+계정 상태 수정: 능력치 텍스트, 가용성, 단가 변화를 요청하면 수정
+
+계정 구성요소 조회: 계정 UUID에 달린 단일 능력치들과 요구 능력치의 UUID를 반환
+능력치 조회: 단일 능력치 UUID, 요구 능력치 UUID를 받아 정보 반환
+
+태스크 생성: 계정 UUID, 태스크 요청 텍스트, 하드 리미트(elo 제한, 인간 계정 1개 이상 포함 제한, 단가 제한 등)를 받으면 태스트 UUID 반환
+태스크 조회: 태스크 UUID를 받아 태스크 정보 조회
+태스크 상태 변경: 태스크 성공/실패 여부를 변경하고 이에따른 평판을 변동시킴

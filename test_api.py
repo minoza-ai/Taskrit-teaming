@@ -1,5 +1,3 @@
-"""API 전체 동작 테스트 스크립트."""
-
 import json
 import time
 import requests
@@ -24,6 +22,7 @@ def pp(label: str, r):
 # ── 1. Health check ──
 r = requests.get(f"{BASE}/")
 pp("GET / (Health Check)", r)
+time.sleep(1)
 
 # ── 2. 계정 생성 (human) ──
 human1 = {
@@ -34,7 +33,7 @@ human1 = {
 }
 r = requests.post(f"{BASE}/Account", json=human1)
 pp("POST /Account (human1)", r)
-time.sleep(2)
+time.sleep(5)
 
 # ── 3. 계정 생성 (agent) ──
 agent1 = {
@@ -45,7 +44,7 @@ agent1 = {
 }
 r = requests.post(f"{BASE}/Account", json=agent1)
 pp("POST /Account (agent1)", r)
-time.sleep(2)
+time.sleep(5)
 
 # ── 4. 계정 생성 (asset) ──
 asset1 = {
@@ -81,7 +80,7 @@ r = requests.patch(f"{BASE}/Account/{human1['accountId']}", json={"cost": 600, "
 pp("PATCH /Account/{{accountId}} (cost: 500->600)", r)
 
 # ── 9. 태스크 생성 + 매칭 ──
-time.sleep(2)
+time.sleep(5)
 task1 = {
     "accountId": human1["accountId"],
     "request": "Build a REST API backend with user authentication, database integration, and deploy to Kubernetes cluster.",
@@ -93,6 +92,7 @@ task1 = {
 }
 r = requests.post(f"{BASE}/Task", json=task1)
 pp("POST /Task (create + match)", r)
+time.sleep(2)
 
 # 태스크 ID 추출
 try:

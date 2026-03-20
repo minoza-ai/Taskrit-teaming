@@ -1,0 +1,133 @@
+"""Gemini AI 서비스 — 능력치 분해 + 텍스트 임베딩."""
+
+import json
+import time
+import logging
+
+from google import genai
+from google.genai import types
+from google.genai.errors import ClientError
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+client = genai.Client(api_key=settings.geminiApi)
+
+DECOMPOSE_SYSTEM = (
+    "You are a skill decomposition engine. "
+    "Given a description of someone's abilities or an asset's features, "
+    "break it down into a JSON array of distinct, non-overlapping, "
+    "specific technical skills or job functions. "
+    "Each item should be a short phrase in the original language. "
+    "Return ONLY the JSON array, no other text."
+)
+
+REQUIREMENT_SYSTEM = (
+    "You are a requirement analysis engine. "
+    "Given an asset description, determine what human/agent skills are needed "
+    "to operate or utilize this asset. "
+    "Return a JSON array of distinct required skills as short phrases "
+    "in the original language. Return ONLY the JSON array."
+)
+
+TASK_DECOMPOSE_SYSTEM = (
+    "You are a task analysis engine. "
+    "Given a task request, break it down into a JSON array of distinct skills "
+    "needed to complete the task. Each skill should be specific and actionable. "
+    "Return ONLY the JSON array, no other text."
+)
+
+MAX_RETRIES = 3
+RETRY_DELAYS = [5, 15, 30]  # 초
+
+
+def _retryOnQuota(fn):
+    """429 할당량 초과 시 재시도 래퍼."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            return fn()
+        except ClientError as e:
+            if "429" in str(e) and attempt < MAX_RETRIES - 1:
+                delay = RETRY_DELAYS[attempt]
+                logger.warning(f"Gemini 할당량 초과, {delay}초 후 재시도 ({attempt + 1}/{MAX_RETRIES})")
+                time.sleep(delay)
+            else:
+                raise
+    return fn()
+
+
+async def decomposeAbilities(text: str) -> list[str]:
+    """능력치 원문 → 단일 능력치 리스트 (정확도 우선, low temperature)."""
+    response = _retryOnQuota(lambda: client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=text,
+        config=types.GenerateContentConfig(
+            system_instruction=DECOMPOSE_SYSTEM,
+            temperature=0.2,
+        ),
+    ))
+    return _parseJsonArray(response.text)
+
+
+async def decomposeRequirements(text: str) -> list[str]:
+    """에셋 설명 → 요구 능력치 리스트."""
+    response = _retryOnQuota(lambda: client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=text,
+        config=types.GenerateContentConfig(
+            system_instruction=REQUIREMENT_SYSTEM,
+            temperature=0.2,
+        ),
+    ))
+    return _parseJsonArray(response.text)
+
+
+async def decomposeTaskRequest(text: str) -> list[str]:
+    """태스크 요청 → 필요 능력치 리스트 (다양성 위해 mid temperature)."""
+    response = _retryOnQuota(lambda: client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=text,
+        config=types.GenerateContentConfig(
+            system_instruction=TASK_DECOMPOSE_SYSTEM,
+            temperature=0.5,
+        ),
+    ))
+    return _parseJsonArray(response.text)
+
+
+async def embedText(text: str) -> list[float]:
+    """텍스트 → 벡터 임베딩."""
+    result = _retryOnQuota(lambda: client.models.embed_content(
+        model="gemini-embedding-exp-03-07",
+        contents=text,
+    ))
+    return result.embeddings[0].values
+
+
+async def embedTexts(texts: list[str]) -> list[list[float]]:
+    """텍스트 리스트 → 벡터 임베딩 리스트 (배치)."""
+    result = _retryOnQuota(lambda: client.models.embed_content(
+        model="gemini-embedding-exp-03-07",
+        contents=texts,
+    ))
+    return [e.values for e in result.embeddings]
+
+
+def _parseJsonArray(text: str) -> list[str]:
+    """AI 응답에서 JSON 배열 파싱."""
+    cleaned = text.strip()
+    # 마크다운 코드블럭 제거
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+    except json.JSONDecodeError:
+        pass
+    # 폴백: 줄 단위 파싱
+    return [line.strip().strip('"-,') for line in text.strip().splitlines() if line.strip()]

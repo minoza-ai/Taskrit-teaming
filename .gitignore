@@ -1,1 +1,7 @@
 .env
+__pycache__/
+*.pyc
+venv/
+*.db
+taskrit.db
+qdrant_data/

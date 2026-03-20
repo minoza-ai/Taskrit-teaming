@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+aiosqlite
+pydantic
+pydantic-settings
+google-genai
+qdrant-client
+python-dotenv

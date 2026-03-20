@@ -9,7 +9,6 @@ from app.services import account as accountService
 
 router = APIRouter(tags=["Account"])
 
-
 @router.post("/Account", response_model=AccountResponse, status_code=201)
 async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
     """계정 생성 (능력치 분해 + 임베딩 포함)."""
@@ -20,7 +19,6 @@ async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
     account = await accountService.createAccount(db, body.accountId, body.type, body.abilityText, body.cost)
     return account
 
-
 @router.get("/Account/{accountId}", response_model=AccountResponse)
 async def getAccount(accountId: str, db: AsyncSession = Depends(getDb)):
     """계정 조회."""
@@ -28,7 +26,6 @@ async def getAccount(accountId: str, db: AsyncSession = Depends(getDb)):
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
-
 
 @router.patch("/Account/{accountId}", response_model=AccountResponse)
 async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = Depends(getDb)):
@@ -38,14 +35,12 @@ async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = 
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
-
 @router.delete("/Account/{accountId}", status_code=204)
 async def deleteAccount(accountId: str, db: AsyncSession = Depends(getDb)):
     """계정 삭제."""
     success = await accountService.deleteAccount(db, accountId)
     if not success:
         raise HTTPException(status_code=404, detail="Account not found")
-
 
 @router.get("/Account/{accountId}/Components", response_model=AccountComponents)
 async def getAccountComponents(accountId: str, db: AsyncSession = Depends(getDb)):

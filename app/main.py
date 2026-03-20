@@ -7,13 +7,11 @@ from fastapi import FastAPI
 from app.database import initDb
 from app.routers import account, ability, task
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """서버 시작 시 DB 테이블 생성."""
     await initDb()
     yield
-
 
 app = FastAPI(
     title="Taskrit TeamingOn Engine",
@@ -25,7 +23,6 @@ app = FastAPI(
 app.include_router(account.router)
 app.include_router(ability.router)
 app.include_router(task.router)
-
 
 @app.get("/")
 async def root():

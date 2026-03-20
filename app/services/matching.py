@@ -9,7 +9,6 @@ from app.services import gemini
 from app.services import qdrant as qdrantService
 from app.utils.scoring import calcHybridScore
 
-
 async def matchForTask(
     db: AsyncSession,
     requiredSkills: list[str],
@@ -18,7 +17,6 @@ async def matchForTask(
     requireHuman: bool = False,
 ) -> list[dict]:
     """태스크에 필요한 능력치별 매칭 결과 반환.
-
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
     """
@@ -99,7 +97,6 @@ async def matchForTask(
         })
 
     return results
-
 
 async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int, requiredCost: int) -> str | None:
     """에셋의 요구 능력치를 충족하는 능동 계정을 탐색."""

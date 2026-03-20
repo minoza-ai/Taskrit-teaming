@@ -12,12 +12,8 @@ from app.services import qdrant as qdrantService
 BASE_ELO = 1000
 K_FACTOR = 32  # ELO 변동 계수
 
-
 async def estimateTaskElo(db: AsyncSession, request: str, requiredDate: int, requiredElo: int, requiredCost: int) -> int:
-    """태스크 난이도 ELO 산정.
-
-    기존 유사 태스크의 elo를 기준으로 삼고, 난이도 요소를 가감.
-    """
+    """태스크 난이도 ELO 산정. 기존 유사 태스크의 elo를 기준으로 삼고, 난이도 요소를 가감."""
     baseElo = BASE_ELO
 
     # 유사 태스크 검색 시도
@@ -53,7 +49,6 @@ async def estimateTaskElo(db: AsyncSession, request: str, requiredDate: int, req
         eloAdjustment += 100
 
     return baseElo + eloAdjustment
-
 
 async def updateEloOnComplete(db: AsyncSession, taskId: str, success: bool):
     """태스크 완료/실패 시 참여 계정의 ELO 변동."""

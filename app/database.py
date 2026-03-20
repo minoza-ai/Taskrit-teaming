@@ -11,12 +11,10 @@ class Base(DeclarativeBase):
     """ORM 베이스 클래스."""
     pass
 
-
 async def getDb():
     """FastAPI 의존성 — DB 세션 제공."""
     async with asyncSessionLocal() as session:
         yield session
-
 
 async def initDb():
     """테이블 자동 생성."""

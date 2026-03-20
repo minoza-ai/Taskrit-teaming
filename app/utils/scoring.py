@@ -17,13 +17,11 @@ def normalizeElo(elo: int, maxElo: int = 3000) -> float:
     """ELO를 0~1로 정규화."""
     return min(max(elo / maxElo, 0.0), 1.0)
 
-
 def normalizeCostEfficiency(cost: int, maxCost: int) -> float:
     """단가 효율성 — 낮을수록 효율적 (0~1, 1이 가장 효율적)."""
     if maxCost <= 0:
         return 1.0
     return 1.0 - min(cost / maxCost, 1.0)
-
 
 def calcNewBonus(joinDate: datetime) -> float:
     """신규 가입 보너스 (가입 30일 이내 시 감쇠 보너스)."""
@@ -31,7 +29,6 @@ def calcNewBonus(joinDate: datetime) -> float:
     if daysSinceJoin >= NEW_BONUS_DAYS:
         return 0.0
     return 1.0 - (daysSinceJoin / NEW_BONUS_DAYS)
-
 
 def calcHybridScore(
     accountType: str,

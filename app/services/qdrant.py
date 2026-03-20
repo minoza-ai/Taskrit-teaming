@@ -11,7 +11,6 @@ qdrant = QdrantClient(path="./qdrant_data")
 ABILITY_COLLECTION = "abilities"
 REQUIREMENT_COLLECTION = "requirements"
 
-
 def initCollections():
     """Qdrant 컬렉션 초기화."""
     for name in [ABILITY_COLLECTION, REQUIREMENT_COLLECTION]:
@@ -23,7 +22,6 @@ def initCollections():
                     distance=Distance.COSINE,
                 ),
             )
-
 
 def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
     """능력치 벡터 저장."""
@@ -38,7 +36,6 @@ def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
         ],
     )
 
-
 def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
     """요구 능력치 벡터 저장."""
     qdrant.upsert(
@@ -51,7 +48,6 @@ def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
             )
         ],
     )
-
 
 def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
     """능력치 벡터 유사도 검색."""
@@ -70,7 +66,6 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
         for hit in results
     ]
 
-
 def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
     """요구 능력치 벡터 유사도 검색."""
     results = qdrant.query_points(
@@ -88,7 +83,6 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
         for hit in results
     ]
 
-
 def deleteByAccount(accountId: str):
     """계정 삭제 시 벡터도 제거."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -98,7 +92,6 @@ def deleteByAccount(accountId: str):
     )
     for collection in [ABILITY_COLLECTION, REQUIREMENT_COLLECTION]:
         qdrant.delete(collection_name=collection, points_selector=accountFilter)
-
 
 # 서버 시작 시 컬렉션 초기화
 initCollections()

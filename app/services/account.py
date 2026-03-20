@@ -11,7 +11,6 @@ from app.models.requirement import Requirement
 from app.services import gemini
 from app.services import qdrant as qdrantService
 
-
 async def createAccount(db: AsyncSession, accountId: str, accountType: str, abilityText: str, cost: int = 0) -> Account:
     """계정 생성 — 능력치 분해 + 임베딩 포함."""
     account = Account(

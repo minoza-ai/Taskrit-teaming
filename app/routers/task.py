@@ -14,7 +14,6 @@ from app.services.reputation import estimateTaskElo, updateEloOnComplete
 
 router = APIRouter(tags=["Task"])
 
-
 @router.post("/Task", response_model=list[MatchResult], status_code=201)
 async def createTask(body: TaskCreate, db: AsyncSession = Depends(getDb)):
     """태스크 생성 + 매칭 결과 반환."""
@@ -62,7 +61,6 @@ async def createTask(body: TaskCreate, db: AsyncSession = Depends(getDb)):
         for r in matchResults
     ]
 
-
 @router.get("/Task/{taskId}", response_model=TaskResponse)
 async def getTask(taskId: str, db: AsyncSession = Depends(getDb)):
     """태스크 조회."""
@@ -70,7 +68,6 @@ async def getTask(taskId: str, db: AsyncSession = Depends(getDb)):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
-
 
 @router.patch("/Task/{taskId}/Status", response_model=TaskResponse)
 async def updateTaskStatus(taskId: str, body: TaskStatusUpdate, db: AsyncSession = Depends(getDb)):

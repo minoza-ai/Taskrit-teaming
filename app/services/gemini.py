@@ -6,7 +6,6 @@ import logging
 
 from google import genai
 from google.genai import types
-from google.genai.errors import ClientError
 
 from app.config import settings
 
@@ -14,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 client = genai.Client(api_key=settings.geminiApi)
 
+SPLITTING_MODEL = "gemini-3-pro-preview"
 EMBEDDING_MODEL = "gemini-embedding-2-preview"
 
 DECOMPOSE_SYSTEM = (
@@ -43,7 +43,6 @@ TASK_DECOMPOSE_SYSTEM = (
 MAX_RETRIES = 3
 RETRY_DELAYS = [5, 15, 30]
 
-
 async def _retryOnQuota(fn, is_embedding=False, text=""):
     """429 할당량 초과 시 비동기 재시도 및 폴백(mock) 반환."""
     loop = asyncio.get_event_loop()
@@ -66,11 +65,10 @@ async def _retryOnQuota(fn, is_embedding=False, text=""):
                     return mock_resp()
     return await loop.run_in_executor(None, fn)
 
-
 async def decomposeAbilities(text: str) -> list[str]:
     """능력치 원문 → 단일 능력치 리스트 (정확도 우선, low temperature)."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model=SPLITTING_MODEL,
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=DECOMPOSE_SYSTEM,
@@ -79,11 +77,10 @@ async def decomposeAbilities(text: str) -> list[str]:
     ))
     return _parseJsonArray(response.text)
 
-
 async def decomposeRequirements(text: str) -> list[str]:
     """에셋 설명 → 요구 능력치 리스트."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model=SPLITTING_MODEL,
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=REQUIREMENT_SYSTEM,
@@ -92,11 +89,10 @@ async def decomposeRequirements(text: str) -> list[str]:
     ))
     return _parseJsonArray(response.text)
 
-
 async def decomposeTaskRequest(text: str) -> list[str]:
     """태스크 요청 → 필요 능력치 리스트 (다양성 위해 mid temperature)."""
     response = await _retryOnQuota(lambda: client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model=SPLITTING_MODEL,
         contents=text,
         config=types.GenerateContentConfig(
             system_instruction=TASK_DECOMPOSE_SYSTEM,
@@ -104,7 +100,6 @@ async def decomposeTaskRequest(text: str) -> list[str]:
         ),
     ))
     return _parseJsonArray(response.text)
-
 
 async def embedText(text: str) -> list[float]:
     """텍스트 → 벡터 임베딩."""
@@ -115,14 +110,12 @@ async def embedText(text: str) -> list[float]:
     if isinstance(result, list): return result  # fallback mock vector
     return result.embeddings[0].values
 
-
 async def embedTexts(texts: list[str]) -> list[list[float]]:
     """텍스트 리스트 → 벡터 임베딩 리스트 (순차)."""
     results = []
     for t in texts:
         results.append(await embedText(t))
     return results
-
 
 def _parseJsonArray(text: str) -> list[str]:
     """AI 응답에서 JSON 배열 파싱."""

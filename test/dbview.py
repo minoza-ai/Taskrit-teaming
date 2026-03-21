@@ -9,7 +9,7 @@ DB 뷰어 — taskrit.db의 모든 테이블을 표 형식으로 출력한다.
 import sqlite3
 import sys
 
-DB_PATH = "taskrit.db"
+DB_PATH = "../taskrit.db"
 
 TABLES = ["accounts", "abilities", "requirements", "tasks"]
 

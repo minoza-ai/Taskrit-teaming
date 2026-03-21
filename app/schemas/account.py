@@ -10,6 +10,7 @@ class AccountCreate(BaseModel):
     type: str  # human, agent, robot, asset
     abilityText: str
     cost: int = 0
+    hmac: str
 
 class AccountUpdate(BaseModel):
     """계정 상태 수정 요청."""
@@ -17,6 +18,7 @@ class AccountUpdate(BaseModel):
     abilityText: Optional[str] = None
     availability: Optional[bool] = None
     cost: Optional[int] = None
+    hmac: str
 
 class AccountResponse(BaseModel):
     """계정 응답."""

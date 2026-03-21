@@ -12,6 +12,7 @@ class TaskCreate(BaseModel):
     requiredCost: int = 0
     requireHuman: bool = False  # 인간 계정 1개 이상 포함 제한
     maxCost: int = 0  # 단가 상한
+    hmac: str
 
 class TaskResponse(BaseModel):
     """태스크 응답."""
@@ -32,6 +33,7 @@ class TaskStatusUpdate(BaseModel):
     """태스크 상태 변경 요청."""
 
     status: str  # completed, failed
+    hmac: str
 
 class MatchCandidate(BaseModel):
     """매칭 후보 단일 항목."""

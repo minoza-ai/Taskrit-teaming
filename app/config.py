@@ -11,6 +11,7 @@ class Settings:
     databaseUrl: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./taskrit.db")
     qdrantHost: str = os.getenv("QDRANT_HOST", "localhost")
     qdrantPort: int = int(os.getenv("QDRANT_PORT", "6333"))
+    hmacKey: str = os.getenv("HMAC_KEY", "")
     embeddingDim: int = 3072  # Gemini embedding dimension
 
 settings = Settings()

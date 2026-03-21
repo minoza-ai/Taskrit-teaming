@@ -12,8 +12,15 @@ API 테스트 스크립트
 
 import requests
 import uuid
+import hmac
+import hashlib
 
 BASE_URL = "http://localhost:8000"
+HMAC_KEY = "00000000000000000000000000000000"
+
+def generate_hmac(message: str) -> str:
+    """HMAC-SHA256 hex-digest를 생성한다."""
+    return hmac.new(HMAC_KEY.encode(), message.encode(), hashlib.sha256).hexdigest()
 
 def run_tests():
     print("=== API 테스트 시작 ===")
@@ -36,7 +43,8 @@ def run_tests():
         "accountId": account_id,
         "type": "agent",
         "abilityText": "Python FastAPI 전문가. 데이터베이스 설계 및 API 개발 가능.",
-        "cost": 100
+        "cost": 100,
+        "hmac": generate_hmac(account_id)
     }
     try:
         res = requests.post(f"{BASE_URL}/Account", json=create_payload)
@@ -61,7 +69,8 @@ def run_tests():
     update_payload = {
         "abilityText": "Python FastAPI, React 전문가 추가",
         "availability": False,
-        "cost": 150
+        "cost": 150,
+        "hmac": generate_hmac(account_id)
     }
     try:
         res = requests.patch(f"{BASE_URL}/Account/{account_id}", json=update_payload)
@@ -124,7 +133,8 @@ def run_tests():
         "requiredElo": 1000,
         "requiredCost": 200,
         "maxCost": 500,
-        "requireHuman": False
+        "requireHuman": False,
+        "hmac": generate_hmac(account_id)
     }
     try:
         res = requests.post(f"{BASE_URL}/Task", json=task_payload)
@@ -150,7 +160,7 @@ def run_tests():
 
         # 10. Task 상태 업데이트 테스트
         print(f"\n[10] Task 상태 업데이트 테스트 (/Task/{task_id}/Status)")
-        status_payload = {"status": "completed"}
+        status_payload = {"status": "completed", "hmac": generate_hmac(task_id)}
         try:
             res = requests.patch(f"{BASE_URL}/Task/{task_id}/Status", json=status_payload)
             print(f"Status Code: {res.status_code}")
@@ -164,7 +174,7 @@ def run_tests():
     # 11. Account 삭제 테스트
     print("\n[11] 계정 삭제 테스트 (/Account/{accountId})")
     try:
-        res = requests.delete(f"{BASE_URL}/Account/{account_id}")
+        res = requests.delete(f"{BASE_URL}/Account/{account_id}", params={"hmac": generate_hmac(account_id)})
         print(f"Status Code: {res.status_code}")
         assert res.status_code == 204
         print("-> 계정 삭제 정상 작동")

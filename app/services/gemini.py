@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 
+from fastapi import HTTPException
 from google import genai
 from google.genai import types
 
@@ -30,7 +31,8 @@ REQUIREMENT_SYSTEM = (
     "Given an asset description, determine what human/agent skills are needed "
     "to operate or utilize this asset. "
     "Return a JSON array of distinct required skills as short phrases "
-    "in the original language. Return ONLY the JSON array."
+    "in the original language. Return ONLY the JSON array. "
+    "CRITICAL: Limit the output to a minimum of 1 and a maximum of 3 most essential skills."
 )
 
 TASK_DECOMPOSE_SYSTEM = (
@@ -44,26 +46,25 @@ MAX_RETRIES = 3
 RETRY_DELAYS = [5, 15, 30]
 
 async def _retryOnQuota(fn, is_embedding=False, text=""):
-    """429 할당량 초과 시 비동기 재시도 및 폴백(mock) 반환."""
+    """429 할당량 초과 시 비동기 재시도. 최종 실패 시 명시적 오류 반환."""
     loop = asyncio.get_event_loop()
+    lastError = None
     for attempt in range(MAX_RETRIES):
         try:
             return await loop.run_in_executor(None, fn)
         except Exception as e:
+            lastError = e
             if "429" in str(e) and attempt < MAX_RETRIES - 1:
                 delay = RETRY_DELAYS[attempt]
                 logger.warning(f"Gemini 할당량 초과, {delay}초 후 재시도 ({attempt + 1}/{MAX_RETRIES})")
                 await asyncio.sleep(delay)
             else:
-                logger.error(f"Gemini API 최종 실패, 폴백 동작 적용: {e}")
-                if is_embedding:
-                    # Mock vector (3072 dim)
-                    return [0.01] * 3072
-                else:
-                    # Mock json response
-                    mock_resp = type("MockResp", (), {"text": '["Python", "Backend", "API Server", "System Architecture"]'})
-                    return mock_resp()
-    return await loop.run_in_executor(None, fn)
+                errorType = "임베딩 생성" if is_embedding else "AI 분석"
+                logger.error(f"Gemini API 최종 실패 ({errorType}): {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Gemini API {errorType} 실패: {str(e)}"
+                )
 
 async def decomposeAbilities(text: str) -> list[str]:
     """능력치 원문 → 단일 능력치 리스트 (정확도 우선, low temperature)."""
@@ -111,9 +112,12 @@ async def embedText(text: str) -> list[float]:
     return result.embeddings[0].values
 
 async def embedTexts(texts: list[str]) -> list[list[float]]:
-    """텍스트 리스트 → 벡터 임베딩 리스트 (순차)."""
+    """텍스트 리스트 → 벡터 임베딩 리스트 (순차 처리 및 속도 제한)."""
     results = []
-    for t in texts:
+    for i, t in enumerate(texts):
+        if i > 0:
+            # 다량 처리 시 사용량 초과를 막기 위해 약간의 시차 발생
+            await asyncio.sleep(0.3)
         results.append(await embedText(t))
     return results
 

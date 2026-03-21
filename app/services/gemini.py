@@ -22,7 +22,8 @@ DECOMPOSE_SYSTEM = (
     "Given a description of someone's abilities or an asset's features, "
     "break it down into a JSON array of distinct, non-overlapping, "
     "specific technical skills or job functions. "
-    "Each item should be a short phrase in the original language. "
+    "CRITICAL: Group highly cohesive concepts together (e.g., 'Python Backend Development') rather than splitting into isolated words (e.g., not 'Python', 'Backend'). "
+    "Each item should be a meaningful short phrase in the original language. "
     "Return ONLY the JSON array, no other text."
 )
 
@@ -38,7 +39,9 @@ REQUIREMENT_SYSTEM = (
 TASK_DECOMPOSE_SYSTEM = (
     "You are a task analysis engine. "
     "Given a task request, break it down into a JSON array of distinct skills "
-    "needed to complete the task. Each skill should be specific and actionable. "
+    "needed to complete the task. "
+    "CRITICAL: Keep highly cohesive concepts grouped together (e.g., 'Python Backend System') rather than over-splitting them into granular isolated words ('Python', 'Backend', 'System'). "
+    "Each skill should represent a solid, meaningful capability. "
     "Return ONLY the JSON array, no other text."
 )
 

@@ -14,6 +14,7 @@ import requests
 import uuid
 import hmac
 import hashlib
+import json
 
 BASE_URL = "http://localhost:8000"
 HMAC_KEY = "00000000000000000000000000000000"
@@ -21,6 +22,16 @@ HMAC_KEY = "00000000000000000000000000000000"
 def generate_hmac(message: str) -> str:
     """HMAC-SHA256 hex-digest를 생성한다."""
     return hmac.new(HMAC_KEY.encode(), message.encode(), hashlib.sha256).hexdigest()
+
+def print_json(title: str, data: dict | list | None):
+    print(f"--- {title} ---")
+    if data is None:
+        print("None")
+    elif isinstance(data, (dict, list)):
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+    else:
+        print(data)
+    print("-" * (8 + len(title)))
 
 def run_tests():
     print("=== API 테스트 시작 ===")
@@ -30,6 +41,10 @@ def run_tests():
     try:
         res = requests.get(f"{BASE_URL}/")
         print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code == 200
         print("-> 루트 엔드포인트 정상 작동")
     except Exception as e:
@@ -46,9 +61,14 @@ def run_tests():
         "cost": 100,
         "hmac": generate_hmac(account_id)
     }
+    print_json("Request JSON", create_payload)
     try:
         res = requests.post(f"{BASE_URL}/Account", json=create_payload)
         print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code == 201
         print("-> 계정 생성 정상 작동")
     except Exception as e:
@@ -59,6 +79,10 @@ def run_tests():
     try:
         res = requests.get(f"{BASE_URL}/Account/{account_id}")
         print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code == 200
         print("-> 계정 조회 정상 작동")
     except Exception as e:
@@ -72,9 +96,14 @@ def run_tests():
         "cost": 150,
         "hmac": generate_hmac(account_id)
     }
+    print_json("Request JSON", update_payload)
     try:
         res = requests.patch(f"{BASE_URL}/Account/{account_id}", json=update_payload)
         print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code == 200
         print("-> 계정 상태 수정 정상 작동")
     except Exception as e:
@@ -87,13 +116,17 @@ def run_tests():
     try:
         res = requests.get(f"{BASE_URL}/Account/{account_id}/Components")
         print(f"Status Code: {res.status_code}")
+        try:
+            data = res.json()
+            print_json("Response JSON", data)
+            if data.get("abilityIds"):
+                ability_id = data["abilityIds"][0]
+            if data.get("requirementIds"):
+                requirement_id = data["requirementIds"][0]
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code == 200
-        data = res.json()
         print("-> 계정 구성요소 조회 정상 작동")
-        if data.get("abilityIds"):
-            ability_id = data["abilityIds"][0]
-        if data.get("requirementIds"):
-            requirement_id = data["requirementIds"][0]
     except Exception as e:
         print(f"구성요소 조회 테스트 실패: {e}")
 
@@ -103,6 +136,10 @@ def run_tests():
         try:
             res = requests.get(f"{BASE_URL}/Ability/{ability_id}")
             print(f"Status Code: {res.status_code}")
+            try:
+                print_json("Response JSON", res.json())
+            except:
+                print(f"Response Text: {res.text}")
             assert res.status_code == 200
             print("-> 능력치 단일 조회 정상 작동")
         except Exception as e:
@@ -116,6 +153,10 @@ def run_tests():
         try:
             res = requests.get(f"{BASE_URL}/Requirement/{requirement_id}")
             print(f"Status Code: {res.status_code}")
+            try:
+                print_json("Response JSON", res.json())
+            except:
+                print(f"Response Text: {res.text}")
             assert res.status_code == 200
             print("-> 요구 능력치 단일 조회 정상 작동")
         except Exception as e:
@@ -136,13 +177,18 @@ def run_tests():
         "requireHuman": False,
         "hmac": generate_hmac(account_id)
     }
+    print_json("Request JSON", task_payload)
     try:
         res = requests.post(f"{BASE_URL}/Task", json=task_payload)
         print(f"Status Code: {res.status_code}")
+        try:
+            data = res.json()
+            print_json("Response JSON", data)
+            if isinstance(data, list) and len(data) > 0:
+                task_id = data[0].get("taskId")
+        except:
+            print(f"Response Text: {res.text}")
         assert res.status_code in (200, 201)
-        data = res.json()
-        if isinstance(data, list) and len(data) > 0:
-            task_id = data[0].get("taskId")
         print("-> Task 생성 및 매칭 정상 작동")
     except Exception as e:
         print(f"Task 생성 테스트 실패: {e}")
@@ -153,6 +199,10 @@ def run_tests():
         try:
             res = requests.get(f"{BASE_URL}/Task/{task_id}")
             print(f"Status Code: {res.status_code}")
+            try:
+                print_json("Response JSON", res.json())
+            except:
+                print(f"Response Text: {res.text}")
             assert res.status_code == 200
             print("-> Task 조회 정상 작동")
         except Exception as e:
@@ -161,9 +211,14 @@ def run_tests():
         # 10. Task 상태 업데이트 테스트
         print(f"\n[10] Task 상태 업데이트 테스트 (/Task/{task_id}/Status)")
         status_payload = {"status": "completed", "hmac": generate_hmac(task_id)}
+        print_json("Request JSON", status_payload)
         try:
             res = requests.patch(f"{BASE_URL}/Task/{task_id}/Status", json=status_payload)
             print(f"Status Code: {res.status_code}")
+            try:
+                print_json("Response JSON", res.json())
+            except:
+                print(f"Response Text: {res.text}")
             assert res.status_code == 200
             print("-> Task 상태 업데이트 정상 작동")
         except Exception as e:
@@ -176,6 +231,16 @@ def run_tests():
     try:
         res = requests.delete(f"{BASE_URL}/Account/{account_id}", params={"hmac": generate_hmac(account_id)})
         print(f"Status Code: {res.status_code}")
+        try:
+            if res.text:
+                try:
+                    print_json("Response JSON", res.json())
+                except:
+                    print(f"Response Text: {res.text}")
+            else:
+                print("Response Body is Empty")
+        except:
+            pass
         assert res.status_code == 204
         print("-> 계정 삭제 정상 작동")
     except Exception as e:

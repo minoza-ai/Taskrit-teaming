@@ -7,7 +7,7 @@ from app.models.account import Account
 from app.models.ability import Ability
 from app.services import gemini
 from app.services import qdrant as qdrantService
-from app.utils.scoring import calcHybridScore
+from app.utils.scoring import calcHybridScore, normalizeValue
 
 async def matchForTask(
     db: AsyncSession,
@@ -67,14 +67,26 @@ async def matchForTask(
             })
 
         # 3차: 하이브리드 리랭킹
-        maxCost = max((c["cost"] for c in candidates), default=1)
+        if candidates:
+            minSim = min(c["similarity"] for c in candidates)
+            maxSim = max(c["similarity"] for c in candidates)
+            minElo = min(c["elo"] for c in candidates)
+            maxElo = max(c["elo"] for c in candidates)
+            minCost = min(c["cost"] for c in candidates)
+            maxCost = max(c["cost"] for c in candidates)
+        else:
+            minSim = maxSim = minElo = maxElo = minCost = maxCost = 0
+
         for c in candidates:
+            normSim = normalizeValue(c["similarity"], minSim, maxSim)
+            normElo = normalizeValue(c["elo"], minElo, maxElo)
+            normCost = normalizeValue(c["cost"], minCost, maxCost, reverse=True)
+
             c["score"] = calcHybridScore(
                 accountType=c["accountType"],
-                similarity=c["similarity"],
-                elo=c["elo"],
-                cost=c["cost"],
-                maxCost=maxCost,
+                normSimilarity=normSim,
+                normElo=normElo,
+                normCost=normCost,
                 joinDate=c["joinDate"],
             )
 

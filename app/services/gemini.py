@@ -29,11 +29,10 @@ DECOMPOSE_SYSTEM = (
 
 REQUIREMENT_SYSTEM = (
     "You are a requirement analysis engine. "
-    "Given an asset description, determine what human/agent skills are needed "
-    "to operate or utilize this asset. "
-    "Return a JSON array of distinct required skills as short phrases "
-    "in the original language. Return ONLY the JSON array. "
-    "CRITICAL: Limit the output to a minimum of 1 and a maximum of 3 most essential skills."
+    "Given an asset description, determine what single most essential human/agent skill "
+    "is needed to operate or utilize this asset. "
+    "CRITICAL: Return a JSON array containing EXACTLY ONE short phrase in the original language representing the single most important required skill. Do not return multiple skills. "
+    "Return ONLY the JSON array, no other text."
 )
 
 TASK_DECOMPOSE_SYSTEM = (

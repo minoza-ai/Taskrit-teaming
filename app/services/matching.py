@@ -9,13 +9,7 @@ from app.services import gemini
 from app.services import qdrant as qdrantService
 from app.utils.scoring import calcHybridScore, normalizeValue
 
-async def matchForTask(
-    db: AsyncSession,
-    requiredSkills: list[str],
-    requiredElo: int = 0,
-    requiredCost: int = 0,
-    requireHuman: bool = False,
-) -> list[dict]:
+async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
     """태스크에 필요한 능력치별 매칭 결과 반환.
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
@@ -52,8 +46,17 @@ async def matchForTask(
 
             # 에셋이면 능동 계정 연결 탐색
             linkedAssetId = None
+            operatorCost = 0
             if account.type == "asset":
-                linkedAssetId = await _findOperator(db, account.accountId, requiredElo, requiredCost)
+                linkedAssetId, operatorCost = await _findOperator(db, account.accountId, requiredElo, requiredCost)
+                if not linkedAssetId:
+                    continue  # 오퍼레이터가 없으면(조종 불가) 후보에서 제외
+
+            totalCost = account.cost + operatorCost
+            
+            # 합산된 총 비용으로 하드 리미트 재검증
+            if requiredCost > 0 and totalCost > requiredCost:
+                continue
 
             candidates.append({
                 "accountId": account.accountId,
@@ -61,7 +64,7 @@ async def matchForTask(
                 "abilityText": abilityText,
                 "similarity": hit["similarity"],
                 "elo": account.elo,
-                "cost": account.cost,
+                "cost": totalCost,
                 "joinDate": account.joinDate,
                 "linkedAssetId": linkedAssetId,
             })
@@ -82,13 +85,19 @@ async def matchForTask(
             normElo = normalizeValue(c["elo"], minElo, maxElo)
             normCost = normalizeValue(c["cost"], minCost, maxCost, reverse=True)
 
-            c["score"] = calcHybridScore(
+            score = calcHybridScore(
                 accountType=c["accountType"],
                 normSimilarity=normSim,
                 normElo=normElo,
                 normCost=normCost,
                 joinDate=c["joinDate"],
             )
+
+            # requireHuman이 True일 때 인간 계정에게 필수 배정에 따른 압도적 가산점 부여
+            if requireHuman and c["accountType"] == "human":
+                score += 10.0
+
+            c["score"] = score
 
         candidates.sort(key=lambda x: x["score"], reverse=True)
 
@@ -110,8 +119,8 @@ async def matchForTask(
 
     return results
 
-async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int, requiredCost: int) -> str | None:
-    """에셋의 요구 능력치를 충족하는 능동 계정을 탐색."""
+async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int, requiredCost: int) -> tuple[str | None, int]:
+    """에셋의 요구 능력치를 충족하는 능동 계정을 탐색. 반환치: (조종사ID, 조종사비용)"""
     from app.models.requirement import Requirement
 
     reqs = (await db.execute(
@@ -119,19 +128,17 @@ async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int,
     )).scalars().all()
 
     if not reqs:
-        return None
+        return None, 0
 
-    # 요구 능력치를 배치 임베딩
-    reqTexts = [req.abilityText for req in reqs]
-    reqVectors = await gemini.embedTexts(reqTexts)
-
-    for vector in reqVectors:
+    for req in reqs:
+        vector = qdrantService.getRequirementVector(req.requirementId)
+        if not vector:
+            continue
+            
         hits = qdrantService.searchAbilities(vector, limit=5)
         for hit in hits:
             account = await db.get(Account, hit["accountId"])
-            if not account or account.accountId == assetAccountId:
-                continue
-            if account.type == "asset":
+            if not account or account.accountId == assetAccountId or account.type == "asset":
                 continue
             if not account.availability:
                 continue
@@ -139,6 +146,6 @@ async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int,
                 continue
             if requiredCost > 0 and account.cost > requiredCost:
                 continue
-            return account.accountId
+            return account.accountId, account.cost
 
-    return None
+    return None, 0

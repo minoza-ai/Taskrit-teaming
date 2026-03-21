@@ -38,6 +38,7 @@ async def createAccount(db: AsyncSession, accountId: str, accountType: str, abil
     if accountType == "asset":
         reqs = await gemini.decomposeRequirements(abilityText)
         if reqs:
+            reqs = reqs[:1]  # 에셋 오퍼레이터는 현재 1명만 할당되므로 가장 첫 번째 요구 능력치 1개만 저장
             reqVectors = await gemini.embedTexts(reqs)
             for reqText, vector in zip(reqs, reqVectors):
                 req = Requirement(
@@ -105,6 +106,7 @@ async def updateAccount(db: AsyncSession, accountId: str, abilityText: str | Non
         if account.type == "asset":
             reqs = await gemini.decomposeRequirements(abilityText)
             if reqs:
+                reqs = reqs[:1]  # 업데이트 시에도 1개의 요구 능력치만 저장
                 reqVectors = await gemini.embedTexts(reqs)
                 for reqText, vector in zip(reqs, reqVectors):
                     req = Requirement(requirementId=str(uuid.uuid4()), accountId=accountId, abilityText=reqText)

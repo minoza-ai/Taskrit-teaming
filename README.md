@@ -17,9 +17,11 @@ pip install -r requirements.txt
 ```
 
 **2. 환경 변수 설정**
-루트 디렉토리에 `.env` 파일을 생성하고 다음 값을 입력합니다. (Gemini API 키 필수)
+루트 디렉토리에 `.env` 파일을 생성하고 다음 값을 입력합니다.
 ```ini
-GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API=AAAAAA...
+DATABASE_URL=sqlite+aiosqlite:///./taskrit.db
+HMAC_KEY=000000...
 ```
 > ※ 로컬 환경의 경우 `taskrit.db` (SQLite) 및 `qdrant_data` (로컬 Qdrant) 폴더가 자동 생성 및 활용됩니다.
 
@@ -34,9 +36,27 @@ uvicorn app.main:app --reload
 
 ## 🚀 API 명세 (API Specification)
 
-**중요 안내 (HMAC 인증)**:
-본 API는 보안을 위해 `hmac` 필드를 필수로 요구합니다. 프론트엔드에서는 사전에 합의된 시크릿 키(`HMAC_KEY`)와 대상 ID(`accountId` 또는 `taskId` 등)를 조합하여 **HMAC-SHA256 (hex-digest)** 값을 생성해 페이로드에 포함시켜야 합니다.
-*(테스트 환경 기본 시크릿 키: `00000000000000000000000000000000`)*
+**중요 안내 (HMAC 인증 및 메인 백엔드 통신)**:
+본 API는 악의적인 접근을 방지하기 위해 중요 요청에 `hmac` 필드를 필수로 요구합니다. 
+> ⚠️ **보안 주의사항**: `HMAC_KEY`는 절대로 클라이언트(프론트엔드 앱, 웹 브라우저)에 노출되어서는 안 되며, **오직 별도의 보안이 유지되는 메인 백엔드 서버에만 존재**해야 합니다. 따라서 중요 요청(계정 생성, 태스크 매칭 등)은 프론트엔드가 엔진 서버를 직접 호출하는 것이 아니라, 클라이언트 ↔ 메인 백엔드 ↔ 매칭 엔진 형태로 경유하여 호출되어야 합니다.
+
+- **HMAC 도출 명세 (Python 구현 예시)**:
+사전에 합의된 시크릿 키(`HMAC_KEY`)와 API 요청의 핵심 식별자(`accountId` 또는 `taskId` 등)를 조합하여 **HMAC-SHA256 (hex-digest)** 문자열을 생성해 `hmac` 인자로 전송합니다.
+
+```python
+import hmac
+import hashlib
+
+# 테스트용 기본 시크릿 키 (실 운영 시 환경 변수로 관리)
+HMAC_KEY = "00000000000000000000000000000000"
+
+def generate_hmac(target_id: str) -> str:
+    """
+    대상 ID(Target ID)를 기반으로 HMAC-SHA256 해시를 생성합니다.
+    (예: Account 생성 시 -> generate_hmac(accountId))
+    """
+    return hmac.new(HMAC_KEY.encode('utf-8'), target_id.encode('utf-8'), hashlib.sha256).hexdigest()
+```
 
 ---
 

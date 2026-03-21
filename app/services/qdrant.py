@@ -83,6 +83,20 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
         for hit in results
     ]
 
+def getRequirementVector(requirementId: str) -> list[float] | None:
+    """ID로 요구 능력치 벡터(임베딩) 즉시 조회."""
+    try:
+        results = qdrant.retrieve(
+            collection_name=REQUIREMENT_COLLECTION,
+            ids=[requirementId],
+            with_vectors=True
+        )
+        if results and results[0].vector:
+            return results[0].vector
+    except Exception:
+        pass
+    return None
+
 def deleteByAccount(accountId: str):
     """계정 삭제 시 벡터도 제거."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue

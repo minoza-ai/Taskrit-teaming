@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 client = genai.Client(api_key=settings.geminiApi)
 
-SPLITTING_MODEL = "gemini-3-pro-preview"
+SPLITTING_MODEL = "gemini-3-flash-preview"
 EMBEDDING_MODEL = "gemini-embedding-2-preview"
 
 DECOMPOSE_SYSTEM = (

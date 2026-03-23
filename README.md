@@ -26,11 +26,30 @@ HMAC_KEY=000000...
 > ※ 로컬 환경의 경우 `taskrit.db` (SQLite) 및 `qdrant_data` (로컬 Qdrant) 폴더가 자동 생성 및 활용됩니다.
 
 **3. 서버 실행**
-FastAPI 서버를 실행합니다.
+가상 환경을 활성화하고 서버를 실행합니다.
 ```bash
-uvicorn app.main:app --reload
+# 가상환경 활성화 (macOS/Linux)
+source .venv/bin/activate
+
+# 3002 포트로 서버 실행
+python -m uvicorn app.main:app --reload --port 3002
 ```
-서버는 기본적으로 `http://localhost:8000` 에서 구동됩니다.
+또는
+```bash
+python app/main.py
+```
+> ※ 로컬 개발 시 3002 포트를 사용합니다. (프론트엔드/백엔드 연동)
+
+```bash
+# Mac/Linux
+source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload
+
+# Windows
+.venv\Scripts\activate
+uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload
+```
+서버는 `http://localhost:3002` 에서 구동됩니다.
 
 ---
 

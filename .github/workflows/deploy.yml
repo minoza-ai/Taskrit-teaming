@@ -112,6 +112,7 @@ jobs:
               --network "taskrit-network" \
               --restart unless-stopped \
               -p 3002:3002 \
+              -e TZ=Asia/Seoul \
               -e GEMINI_API="${{ secrets.GEMINI_API }}" \
               -e HMAC_KEY="${{ secrets.HMAC_KEY }}" \
               -e DATABASE_URL="sqlite+aiosqlite:///./db/taskrit.db" \

@@ -1,6 +1,9 @@
 # Use an official Python runtime as a parent image
 FROM python:3.14-slim
 
+# Set timezone to Korean time (Asia/Seoul)
+ENV TZ=Asia/Seoul
+
 # Set the working directory in the container
 WORKDIR /app
 

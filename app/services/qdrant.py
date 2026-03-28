@@ -55,7 +55,8 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
         collection_name=ABILITY_COLLECTION,
         query=vector,
         limit=limit,
-        score_threshold=0.5,
+        # 프로젝트 설명이 길거나 추상적일 때도 후보를 찾을 수 있도록 recall을 높인다.
+        score_threshold=0.35,
     ).points
     return [
         {
@@ -72,7 +73,7 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
         collection_name=REQUIREMENT_COLLECTION,
         query=vector,
         limit=limit,
-        score_threshold=0.5,
+        score_threshold=0.35,
     ).points
     return [
         {

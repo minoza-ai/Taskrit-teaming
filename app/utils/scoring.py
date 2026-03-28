@@ -7,7 +7,7 @@ WEIGHTS = {
     "human": {"similarity": 0.25, "elo": 0.40, "cost": 0.20, "newBonus": 0.15},
     "agent": {"similarity": 0.45, "elo": 0.20, "cost": 0.20, "newBonus": 0.15},
     "robot": {"similarity": 0.45, "elo": 0.20, "cost": 0.20, "newBonus": 0.15},
-    "asset": {"similarity": 0.20, "elo": 0.15, "cost": 0.45, "newBonus": 0.20},
+    "asset": {"similarity": 0.35, "elo": 0.10, "cost": 0.40, "newBonus": 0.15},  # similarity 가중치 상향 (자산도 주요 매칭 기준)
 }
 
 NEW_BONUS_DAYS = 30  # 신규 보너스 적용 기간 (일)

@@ -20,9 +20,9 @@ async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo:
 
     results = []
     for skill, vector in zip(requiredSkills, vectors):
-        # 2차: 벡터 유사도 검색
+        # 2차: 벡터 유사도 검색 — 능력치(일반) + 요구능력치(에셋)
         abilityHits = qdrantService.searchAbilities(vector, limit=30)
-        requirementHits = qdrantService.searchRequirements(vector, limit=20)
+        requirementHits = qdrantService.searchRequirements(vector, limit=30)  # 에셋 검색 강화
 
         mergedHits = [
             {
@@ -88,7 +88,7 @@ async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo:
             similarity = hit["similarity"]
             # 요구 능력치 기반으로 발견된 에셋은 소폭 가산해 후보로 노출되기 쉽게 조정
             if hit["source"] == "requirement" and account.type == "asset":
-                similarity = min(1.0, similarity + 0.07)
+                similarity = min(1.0, similarity + 0.12)  # 0.07 → 0.12로 상향 (에셋 가산점 증대)
 
             candidate = {
                 "accountId": account.accountId,

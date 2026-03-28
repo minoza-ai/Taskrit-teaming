@@ -11,7 +11,8 @@ qdrant = QdrantClient(path="./qdrant_data")
 ABILITY_COLLECTION = "abilities"
 REQUIREMENT_COLLECTION = "requirements"
 # 프로젝트 설명이 길거나 추상적일 때도 후보를 찾을 수 있도록 recall을 높인다.
-SIMILARITY_THRESHOLD = 0.35
+# 에셋도 충분히 검색되도록 임계값을 낮춤
+SIMILARITY_THRESHOLD = 0.25
 
 def initCollections():
     """Qdrant 컬렉션 초기화."""
@@ -52,11 +53,11 @@ def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
     )
 
 def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
-    """능력치 벡터 유사도 검색."""
+    """능력치 벡터 유사도 검색 (일반 사용자/에이전트/로봇)."""
     results = qdrant.query_points(
         collection_name=ABILITY_COLLECTION,
         query=vector,
-        limit=limit,
+        limit=limit * 2,  # 더 많은 후보를 검색해 에셋도 충분히 포함
         score_threshold=SIMILARITY_THRESHOLD,
     ).points
     return [
@@ -69,11 +70,11 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
     ]
 
 def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
-    """요구 능력치 벡터 유사도 검색."""
+    """요구 능력치 벡터 유사도 검색 (에셋의 요구 능력치 기반 검색)."""
     results = qdrant.query_points(
         collection_name=REQUIREMENT_COLLECTION,
         query=vector,
-        limit=limit,
+        limit=limit * 3,  # 에셋 검색을 위해 더 많은 후보를 수집
         score_threshold=SIMILARITY_THRESHOLD,
     ).points
     return [

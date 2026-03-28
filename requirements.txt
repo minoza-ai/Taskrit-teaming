@@ -4,6 +4,17 @@ sqlalchemy
 aiosqlite
 pydantic
 pydantic-settings
+greenlet
 google-genai
 qdrant-client
 python-dotenv
+requests
+python-multipart
+python-jose
+passlib[bcrypt]
+python-redis
+celery[redis]
+flower
+pytest
+pytest-asyncio
+httpx

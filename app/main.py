@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database import initDb
-from app.routers import account, ability, task
+from app.routers import account, ability, task, search
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +23,7 @@ app = FastAPI(
 app.include_router(account.router)
 app.include_router(ability.router)
 app.include_router(task.router)
+app.include_router(search.router)
 
 @app.get("/")
 async def root():

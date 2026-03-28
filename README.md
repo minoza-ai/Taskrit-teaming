@@ -125,7 +125,38 @@ def generate_hmac(target_id: str) -> str:
 
 ---
 
-### 2. 능력치 및 요구 능력치 상세 조회 API
+### 2. 계정 권장 검색 API (Account Search API)
+
+#### 1) 계정 검색
+- **Endpoint**: `POST /Search`
+- **Description**: 팀 매칭을 거치지 않고 직접 계정 풀을 검색합니다. `keyword`와 `vector` 두 가지 모드를 지원합니다.
+  - **`keyword` 모드**: 입력된 검색어들이 `abilityText`에 얼마나 포함되어 있는지(단어 일치율)를 기반으로 최대 1,000명의 계정을 검색합니다.
+  - **`vector` 모드**: 자연어 검색어를 벡터로 변환하여 Qdrant에 저장된 각 계정의 능력치와 비교합니다. 코사인 유사도가 0.7 이상인 상위 결과 최대 200명을 검색합니다.
+- **Request Body** (JSON):
+  ```json
+  {
+    "query": "string (검색어 문장 또는 키워드)",
+    "mode": "string ('keyword' 또는 'vector', 기본값: 'keyword')",
+    "limit": "integer (반환할 최대 결과 수, 기본값: 20)"
+  }
+  ```
+- **Response** (200 OK):
+  ```json
+  {
+    "query": "string (요청한 검색어)",
+    "mode": "string (적용된 모드)",
+    "results": [
+      {
+        "accountId": "string",
+        "similarity": 0.8521 // (keyword: 단어 일치 비율, vector: 코사인 유사도)
+      }
+    ]
+  }
+  ```
+
+---
+
+### 3. 능력치 및 요구 능력치 상세 조회 API
 
 #### 1) 능력치 단일 조회
 - **Endpoint**: `GET /Ability/{abilityId}`

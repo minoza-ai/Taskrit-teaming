@@ -10,6 +10,8 @@ qdrant = QdrantClient(path="./qdrant_data")
 
 ABILITY_COLLECTION = "abilities"
 REQUIREMENT_COLLECTION = "requirements"
+# 프로젝트 설명이 길거나 추상적일 때도 후보를 찾을 수 있도록 recall을 높인다.
+SIMILARITY_THRESHOLD = 0.35
 
 def initCollections():
     """Qdrant 컬렉션 초기화."""
@@ -55,8 +57,7 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
         collection_name=ABILITY_COLLECTION,
         query=vector,
         limit=limit,
-        # 프로젝트 설명이 길거나 추상적일 때도 후보를 찾을 수 있도록 recall을 높인다.
-        score_threshold=0.35,
+        score_threshold=SIMILARITY_THRESHOLD,
     ).points
     return [
         {
@@ -73,7 +74,7 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
         collection_name=REQUIREMENT_COLLECTION,
         query=vector,
         limit=limit,
-        score_threshold=0.35,
+        score_threshold=SIMILARITY_THRESHOLD,
     ).points
     return [
         {

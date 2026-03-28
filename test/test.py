@@ -226,8 +226,48 @@ def run_tests():
     else:
         print("\n[9, 10] 스킵: Task ID를 찾지 못함.")
 
-    # 11. Account 삭제 테스트
-    print("\n[11] 계정 삭제 테스트 (/Account/{accountId})")
+    # 11. 키워드 검색 테스트
+    print("\n[11] 키워드 검색 테스트 (POST /Search, mode=keyword)")
+    search_keyword_payload = {
+        "query": "Python FastAPI",
+        "mode": "keyword",
+        "limit": 10
+    }
+    print_json("Request JSON", search_keyword_payload)
+    try:
+        res = requests.post(f"{BASE_URL}/Search", json=search_keyword_payload)
+        print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
+        assert res.status_code == 200
+        print("-> 키워드 검색 정상 작동")
+    except Exception as e:
+        print(f"키워드 검색 테스트 실패: {e}")
+
+    # 12. 벡터 유사도 검색 테스트
+    print("\n[12] 벡터 유사도 검색 테스트 (POST /Search, mode=vector)")
+    search_vector_payload = {
+        "query": "백엔드 API 개발",
+        "mode": "vector",
+        "limit": 10
+    }
+    print_json("Request JSON", search_vector_payload)
+    try:
+        res = requests.post(f"{BASE_URL}/Search", json=search_vector_payload)
+        print(f"Status Code: {res.status_code}")
+        try:
+            print_json("Response JSON", res.json())
+        except:
+            print(f"Response Text: {res.text}")
+        assert res.status_code == 200
+        print("-> 벡터 유사도 검색 정상 작동")
+    except Exception as e:
+        print(f"벡터 유사도 검색 테스트 실패: {e}")
+
+    # 13. Account 삭제 테스트
+    print("\n[13] 계정 삭제 테스트 (/Account/{accountId})")
     try:
         res = requests.delete(f"{BASE_URL}/Account/{account_id}", params={"hmac": generate_hmac(account_id)})
         print(f"Status Code: {res.status_code}")

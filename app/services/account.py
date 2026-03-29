@@ -11,7 +11,14 @@ from app.models.requirement import Requirement
 from app.services import gemini
 from app.services import qdrant as qdrantService
 
-async def createAccount(db: AsyncSession, accountId: str, accountType: str, abilityText: str, cost: int = 0) -> Account:
+async def createAccount(
+    db: AsyncSession,
+    accountId: str,
+    accountType: str,
+    abilityText: str,
+    cost: int = 0,
+    skipAi: bool = False,
+) -> Account:
     """계정 생성 — 능력치 분해 + 임베딩 포함."""
     account = Account(
         accountId=accountId,
@@ -21,21 +28,22 @@ async def createAccount(db: AsyncSession, accountId: str, accountType: str, abil
     )
     db.add(account)
 
-    # 능력치 분해
-    skills = await gemini.decomposeAbilities(abilityText)
-    if skills:
-        vectors = await gemini.embedTexts(skills)
-        for skillText, vector in zip(skills, vectors):
-            ability = Ability(
-                abilityId=str(uuid.uuid4()),
-                accountId=accountId,
-                abilityText=skillText,
-            )
-            db.add(ability)
-            qdrantService.upsertAbility(ability.abilityId, accountId, vector)
+    if not skipAi and abilityText.strip():
+        # 능력치 분해
+        skills = await gemini.decomposeAbilities(abilityText)
+        if skills:
+            vectors = await gemini.embedTexts(skills)
+            for skillText, vector in zip(skills, vectors):
+                ability = Ability(
+                    abilityId=str(uuid.uuid4()),
+                    accountId=accountId,
+                    abilityText=skillText,
+                )
+                db.add(ability)
+                qdrantService.upsertAbility(ability.abilityId, accountId, vector)
 
     # 에셋이면 요구 능력치도 생성
-    if accountType == "asset":
+    if accountType == "asset" and not skipAi and abilityText.strip():
         reqs = await gemini.decomposeRequirements(abilityText)
         if reqs:
             reqs = reqs[:1]  # 에셋 오퍼레이터는 현재 1명만 할당되므로 가장 첫 번째 요구 능력치 1개만 저장
@@ -71,7 +79,14 @@ async def getAccount(db: AsyncSession, accountId: str) -> Account | None:
     return await db.get(Account, accountId)
 
 
-async def updateAccount(db: AsyncSession, accountId: str, abilityText: str | None, availability: bool | None, cost: int | None) -> Account | None:
+async def updateAccount(
+    db: AsyncSession,
+    accountId: str,
+    abilityText: str | None,
+    availability: bool | None,
+    cost: int | None,
+    skipAi: bool = False,
+) -> Account | None:
     """계정 상태 수정 — 능력치 변경 시 재분해."""
     account = await db.get(Account, accountId)
     if not account:
@@ -94,16 +109,17 @@ async def updateAccount(db: AsyncSession, accountId: str, abilityText: str | Non
             await db.delete(r)
         qdrantService.deleteByAccount(accountId)
 
-        # 재분해
-        skills = await gemini.decomposeAbilities(abilityText)
-        if skills:
-            vectors = await gemini.embedTexts(skills)
-            for skillText, vector in zip(skills, vectors):
-                ability = Ability(abilityId=str(uuid.uuid4()), accountId=accountId, abilityText=skillText)
-                db.add(ability)
-                qdrantService.upsertAbility(ability.abilityId, accountId, vector)
+        if not skipAi and abilityText.strip():
+            # 재분해
+            skills = await gemini.decomposeAbilities(abilityText)
+            if skills:
+                vectors = await gemini.embedTexts(skills)
+                for skillText, vector in zip(skills, vectors):
+                    ability = Ability(abilityId=str(uuid.uuid4()), accountId=accountId, abilityText=skillText)
+                    db.add(ability)
+                    qdrantService.upsertAbility(ability.abilityId, accountId, vector)
 
-        if account.type == "asset":
+        if account.type == "asset" and not skipAi and abilityText.strip():
             reqs = await gemini.decomposeRequirements(abilityText)
             if reqs:
                 reqs = reqs[:1]  # 업데이트 시에도 1개의 요구 능력치만 저장

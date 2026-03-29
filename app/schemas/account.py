@@ -10,6 +10,7 @@ class AccountCreate(BaseModel):
     type: str  # human, agent, robot, asset
     abilityText: str
     cost: int = 0
+    skipAi: bool = False
     hmac: str
 
 class AccountUpdate(BaseModel):
@@ -18,6 +19,7 @@ class AccountUpdate(BaseModel):
     abilityText: Optional[str] = None
     availability: Optional[bool] = None
     cost: Optional[int] = None
+    skipAi: bool = False
     hmac: str
 
 class AccountResponse(BaseModel):

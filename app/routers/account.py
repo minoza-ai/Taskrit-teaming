@@ -19,7 +19,14 @@ async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
         raise HTTPException(status_code=409, detail="Account already exists")
 
     try:
-        account = await accountService.createAccount(db, body.accountId, body.type, body.abilityText, body.cost)
+        account = await accountService.createAccount(
+            db,
+            body.accountId,
+            body.type,
+            body.abilityText,
+            body.cost,
+            body.skipAi,
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -39,7 +46,14 @@ async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = 
     """계정 상태 수정."""
     verifyHmac(accountId, body.hmac)
     try:
-        account = await accountService.updateAccount(db, accountId, body.abilityText, body.availability, body.cost)
+        account = await accountService.updateAccount(
+            db,
+            accountId,
+            body.abilityText,
+            body.availability,
+            body.cost,
+            body.skipAi,
+        )
     except HTTPException:
         raise
     except Exception as e:

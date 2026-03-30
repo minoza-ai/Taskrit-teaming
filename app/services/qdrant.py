@@ -44,7 +44,7 @@ def _getReadyClient() -> QdrantClient:
         initCollections()
     return _getClient()
 
-def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
+def upsertAbility(abilityId: str, userUuid: str, vector: list[float]):
     """능력치 벡터 저장."""
     qdrant = _getReadyClient()
     qdrant.upsert(
@@ -53,12 +53,12 @@ def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
             PointStruct(
                 id=abilityId,
                 vector=vector,
-                payload={"accountId": accountId},
+                payload={"user_uuid": userUuid},
             )
         ],
     )
 
-def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
+def upsertRequirement(requirementId: str, userUuid: str, vector: list[float]):
     """요구 능력치 벡터 저장."""
     qdrant = _getReadyClient()
     qdrant.upsert(
@@ -67,7 +67,7 @@ def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
             PointStruct(
                 id=requirementId,
                 vector=vector,
-                payload={"accountId": accountId},
+                payload={"user_uuid": userUuid},
             )
         ],
     )
@@ -84,10 +84,11 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
     return [
         {
             "abilityId": str(hit.id),
-            "accountId": hit.payload["accountId"],
+            "user_uuid": hit.payload.get("user_uuid") or hit.payload.get("accountId"),
             "similarity": hit.score,
         }
         for hit in results
+        if hit.payload.get("user_uuid") or hit.payload.get("accountId")
     ]
 
 def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
@@ -102,10 +103,11 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
     return [
         {
             "requirementId": str(hit.id),
-            "accountId": hit.payload["accountId"],
+            "user_uuid": hit.payload.get("user_uuid") or hit.payload.get("accountId"),
             "similarity": hit.score,
         }
         for hit in results
+        if hit.payload.get("user_uuid") or hit.payload.get("accountId")
     ]
 
 def getRequirementVector(requirementId: str) -> list[float] | None:
@@ -123,14 +125,19 @@ def getRequirementVector(requirementId: str) -> list[float] | None:
         pass
     return None
 
-def deleteByAccount(accountId: str):
+def deleteByUserUuid(userUuid: str):
     """계정 삭제 시 벡터도 제거."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     qdrant = _getReadyClient()
 
-    accountFilter = Filter(
-        must=[FieldCondition(key="accountId", match=MatchValue(value=accountId))]
-    )
+    userFilter = Filter(must=[FieldCondition(key="user_uuid", match=MatchValue(value=userUuid))])
+    legacyFilter = Filter(must=[FieldCondition(key="accountId", match=MatchValue(value=userUuid))])
     for collection in [ABILITY_COLLECTION, REQUIREMENT_COLLECTION]:
-        qdrant.delete(collection_name=collection, points_selector=accountFilter)
+        qdrant.delete(collection_name=collection, points_selector=userFilter)
+        qdrant.delete(collection_name=collection, points_selector=legacyFilter)
+
+
+def deleteByAccount(accountId: str):
+    """하위 호환용 alias."""
+    deleteByUserUuid(accountId)

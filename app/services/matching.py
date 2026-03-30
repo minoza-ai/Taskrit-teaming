@@ -1,17 +1,124 @@
 """하이브리드 매칭 엔진 — 3단계 추출."""
 
+from datetime import datetime, timezone
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.services import gemini
 from app.services import qdrant as qdrantService
 from app.utils.scoring import calcHybridScore, normalizeValue
 
+PROFILE_FALLBACK_LIMIT = 300
+
+
+def _toDatetime(value: object) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc).replace(tzinfo=None)
+        except Exception:
+            return datetime.utcnow()
+    return datetime.utcnow()
+
+
+def _tokenize(text: str) -> list[str]:
+    return [token for token in text.lower().split() if token]
+
+
+async def _syncTeamingDocsFromUsers(db: AsyncIOMotorDatabase) -> None:
+    users = await db.users.find(
+        {"deleted_at": None},
+        {"_id": 0, "user_uuid": 1},
+    ).to_list(length=100000)
+    if not users:
+        return
+
+    existing = await db.teaming.find({}, {"_id": 0, "user_uuid": 1}).to_list(length=100000)
+    existingUuids = {
+        doc.get("user_uuid")
+        for doc in existing
+        if isinstance(doc.get("user_uuid"), str) and doc.get("user_uuid")
+    }
+
+    for user in users:
+        userUuid = user.get("user_uuid")
+        if not isinstance(userUuid, str) or not userUuid:
+            continue
+        if userUuid in existingUuids:
+            continue
+        await db.teaming.insert_one(
+            {
+                "user_uuid": userUuid,
+                "type": "human",
+                "elo": 1000,
+                "availability": True,
+                "cost": 0,
+            }
+        )
+
+
+def _profileFallbackHits(requiredSkill: str, profileByUser: dict[str, dict]) -> list[dict]:
+    keywords = _tokenize(requiredSkill)
+    if not keywords:
+        return []
+
+    hits: list[dict] = []
+    for userUuid, profile in profileByUser.items():
+        bio = profile.get("profile_bio", "")
+        if not bio:
+            continue
+        lowered = bio.lower()
+        matchCount = sum(1 for kw in keywords if kw in lowered)
+        if matchCount <= 0:
+            continue
+        ratio = matchCount / len(keywords)
+        similarity = min(0.95, 0.30 + (ratio * 0.65))
+        hits.append(
+            {
+                "source": "profile",
+                "abilityId": None,
+                "requirementId": None,
+                "user_uuid": userUuid,
+                "similarity": similarity,
+            }
+        )
+
+    hits.sort(key=lambda item: item["similarity"], reverse=True)
+    return hits[:PROFILE_FALLBACK_LIMIT]
+
 async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
     """태스크에 필요한 능력치별 매칭 결과 반환.
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
     """
-    # 배치 임베딩 — 모든 능력치를 1회 API 호출로 벡터화
+    await _syncTeamingDocsFromUsers(db)
+
+    teamingDocs = await db.teaming.find({}, {"_id": 0}).to_list(length=100000)
+    teamingByUser: dict[str, dict] = {}
+    for doc in teamingDocs:
+        userUuid = doc.get("user_uuid")
+        if isinstance(userUuid, str) and userUuid:
+            teamingByUser[userUuid] = doc
+
+    profileByUser: dict[str, dict] = {}
+    userUuids = list(teamingByUser.keys())
+    if userUuids:
+        users = await db.users.find(
+            {"user_uuid": {"$in": userUuids}, "deleted_at": None},
+            {"_id": 0, "user_uuid": 1, "profile_bio": 1, "created_at": 1},
+        ).to_list(length=100000)
+        for user in users:
+            userUuid = user.get("user_uuid")
+            if not isinstance(userUuid, str) or not userUuid:
+                continue
+            profileBio = user.get("profile_bio")
+            profileByUser[userUuid] = {
+                "profile_bio": profileBio.strip() if isinstance(profileBio, str) else "",
+                "created_at": user.get("created_at"),
+            }
+
+    # 배치 임베딩 — 모든 요구 능력치를 벡터화
     vectors = await gemini.embedTexts(requiredSkills)
 
     results = []
@@ -25,7 +132,7 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
                 "source": "ability",
                 "abilityId": hit["abilityId"],
                 "requirementId": None,
-                "accountId": hit["accountId"],
+                "user_uuid": hit["user_uuid"],
                 "similarity": hit["similarity"],
             }
             for hit in abilityHits
@@ -34,11 +141,13 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
                 "source": "requirement",
                 "abilityId": None,
                 "requirementId": hit["requirementId"],
-                "accountId": hit["accountId"],
+                "user_uuid": hit["user_uuid"],
                 "similarity": hit["similarity"],
             }
             for hit in requirementHits
         ]
+
+        mergedHits.extend(_profileFallbackHits(skill, profileByUser))
 
         if not mergedHits:
             results.append({"requiredAbility": skill, "candidates": []})
@@ -47,7 +156,8 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
         # 후보 계정 정보 로드 + 1차 하드 필터
         candidateByAccount: dict[str, dict] = {}
         for hit in mergedHits:
-            account = await db.accounts.find_one({"accountId": hit["accountId"]}, {"_id": 0})
+            userUuid = hit["user_uuid"]
+            account = teamingByUser.get(userUuid)
             if not account:
                 continue
 
@@ -66,16 +176,18 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
             elif hit["source"] == "requirement" and hit["requirementId"]:
                 requirement = await db.requirements.find_one({"requirementId": hit["requirementId"]}, {"_id": 0, "abilityText": 1})
                 abilityText = requirement.get("abilityText", "") if requirement else ""
+            else:
+                abilityText = profileByUser.get(userUuid, {}).get("profile_bio", "")
 
             if not abilityText:
-                abilityText = account.get("abilityText", "")
+                abilityText = profileByUser.get(userUuid, {}).get("profile_bio", "")
 
             # 에셋이면 능동 계정 연결 탐색
             linkedAssetId = None
             operatorCost = 0
             accountType = account.get("type", "")
             if accountType == "asset":
-                linkedAssetId, operatorCost = await _findOperator(db, account["accountId"], requiredElo, requiredCost)
+                linkedAssetId, operatorCost = await _findOperator(db, account["user_uuid"], requiredElo, requiredCost)
 
             totalCost = int(account.get("cost", 0)) + operatorCost
             
@@ -89,19 +201,19 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
                 similarity = min(1.0, similarity + 0.12)  # 0.07 → 0.12로 상향 (에셋 가산점 증대)
 
             candidate = {
-                "accountId": account["accountId"],
+                "accountId": account["user_uuid"],
                 "accountType": accountType,
                 "abilityText": abilityText,
                 "similarity": similarity,
                 "elo": accountElo,
                 "cost": totalCost,
-                "joinDate": account.get("joinDate"),
+                "joinDate": _toDatetime(profileByUser.get(userUuid, {}).get("created_at")),
                 "linkedAssetId": linkedAssetId,
             }
 
-            prev = candidateByAccount.get(account["accountId"])
+            prev = candidateByAccount.get(account["user_uuid"])
             if not prev or candidate["similarity"] > prev["similarity"]:
-                candidateByAccount[account["accountId"]] = candidate
+                candidateByAccount[account["user_uuid"]] = candidate
 
         candidates = list(candidateByAccount.values())
 
@@ -157,7 +269,10 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
 
 async def _findOperator(db: AsyncIOMotorDatabase, assetAccountId: str, requiredElo: int, requiredCost: int) -> tuple[str | None, int]:
     """에셋의 요구 능력치를 충족하는 능동 계정을 탐색. 반환치: (조종사ID, 조종사비용)"""
-    reqs = await db.requirements.find({"accountId": assetAccountId}, {"_id": 0, "requirementId": 1}).to_list(length=100)
+    reqs = await db.requirements.find(
+        {"$or": [{"user_uuid": assetAccountId}, {"accountId": assetAccountId}]},
+        {"_id": 0, "requirementId": 1},
+    ).to_list(length=100)
 
     if not reqs:
         return None, 0
@@ -169,8 +284,8 @@ async def _findOperator(db: AsyncIOMotorDatabase, assetAccountId: str, requiredE
             
         hits = qdrantService.searchAbilities(vector, limit=5)
         for hit in hits:
-            account = await db.accounts.find_one({"accountId": hit["accountId"]}, {"_id": 0})
-            if not account or account["accountId"] == assetAccountId or account.get("type") == "asset":
+            account = await db.teaming.find_one({"user_uuid": hit["user_uuid"]}, {"_id": 0})
+            if not account or account["user_uuid"] == assetAccountId or account.get("type") == "asset":
                 continue
             if not account.get("availability", True):
                 continue
@@ -180,6 +295,6 @@ async def _findOperator(db: AsyncIOMotorDatabase, assetAccountId: str, requiredE
                 continue
             if requiredCost > 0 and accountCost > requiredCost:
                 continue
-            return account["accountId"], accountCost
+            return account["user_uuid"], accountCost
 
     return None, 0

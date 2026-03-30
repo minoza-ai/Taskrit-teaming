@@ -15,7 +15,11 @@ async def getAbility(abilityId: str, db: AsyncIOMotorDatabase = Depends(getDb)):
     ability = await db.abilities.find_one({"abilityId": abilityId}, {"_id": 0})
     if not ability:
         raise HTTPException(status_code=404, detail="Ability not found")
-    return ability
+    return {
+        "abilityId": ability.get("abilityId", abilityId),
+        "accountId": ability.get("user_uuid", ""),
+        "abilityText": ability.get("abilityText", ""),
+    }
 
 @router.get("/Requirement/{requirementId}", response_model=RequirementResponse)
 async def getRequirement(requirementId: str, db: AsyncIOMotorDatabase = Depends(getDb)):
@@ -23,4 +27,8 @@ async def getRequirement(requirementId: str, db: AsyncIOMotorDatabase = Depends(
     requirement = await db.requirements.find_one({"requirementId": requirementId}, {"_id": 0})
     if not requirement:
         raise HTTPException(status_code=404, detail="Requirement not found")
-    return requirement
+    return {
+        "requirementId": requirement.get("requirementId", requirementId),
+        "accountId": requirement.get("user_uuid", ""),
+        "abilityText": requirement.get("abilityText", ""),
+    }

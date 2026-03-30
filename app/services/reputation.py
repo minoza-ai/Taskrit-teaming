@@ -53,7 +53,8 @@ async def updateEloOnComplete(db: AsyncIOMotorDatabase, taskId: str, success: bo
     if not task:
         return
 
-    account = await db.accounts.find_one({"accountId": task.get("accountId")}, {"_id": 0})
+    userUuid = task.get("accountId")
+    account = await db.teaming.find_one({"user_uuid": userUuid}, {"_id": 0})
     if not account:
         return
 
@@ -65,8 +66,8 @@ async def updateEloOnComplete(db: AsyncIOMotorDatabase, taskId: str, success: bo
     actual = 1.0 if success else 0.0
     delta = int(K_FACTOR * (actual - expected))
 
-    await db.accounts.update_one(
-        {"accountId": account["accountId"]},
+    await db.teaming.update_one(
+        {"user_uuid": account["user_uuid"]},
         {"$set": {"elo": max(0, currentElo + delta)}},
     )
     await db.tasks.update_one(

@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -30,14 +29,10 @@ class AccountResponse(BaseModel):
     """계정 응답."""
 
     accountId: str
-    userId: Optional[str] = None
-    nickname: Optional[str] = None
     type: str
     elo: int
-    abilityText: str
     availability: bool
     cost: int
-    joinDate: datetime
 
     model_config = {"from_attributes": True}
 

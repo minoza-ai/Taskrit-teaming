@@ -31,23 +31,24 @@ HMAC_KEY=000000...
 # 가상환경 활성화 (macOS/Linux)
 source .venv/bin/activate
 
-# 3002 포트로 서버 실행
-python -m uvicorn app.main:app --reload --port 3002
+# 권장: .venv 감시 제외가 이미 반영된 실행 방식
+python -m app.main
 ```
 또는
 ```bash
-python app/main.py
+# uvicorn CLI를 직접 사용할 경우 (.venv 제외 필수)
+python -m uvicorn app.main:app --reload --port 3002 --reload-dir app --reload-exclude "$PWD/.venv"
 ```
 > ※ 로컬 개발 시 3002 포트를 사용합니다. (프론트엔드/백엔드 연동)
 
 ```bash
 # Mac/Linux
 source .venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload --reload-dir app --reload-exclude "$PWD/.venv"
 
 # Windows
 .venv\Scripts\activate
-uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload --reload-dir app --reload-exclude "%CD%\\.venv"
 ```
 서버는 `http://localhost:3002` 에서 구동됩니다.
 

@@ -20,3 +20,28 @@ async def initDb():
     """테이블 자동 생성."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensureAccountColumnsSync)
+
+
+def _ensureAccountColumnsSync(syncConn):
+    """기존 SQLite DB에 누락된 accounts 컬럼을 안전하게 추가."""
+    if syncConn.dialect.name != "sqlite":
+        return
+
+    tableExists = syncConn.exec_driver_sql(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'"
+    ).fetchone()
+
+    if not tableExists:
+        return
+
+    columns = {
+        row[1]
+        for row in syncConn.exec_driver_sql("PRAGMA table_info(accounts)").fetchall()
+    }
+
+    if "userId" not in columns:
+        syncConn.exec_driver_sql("ALTER TABLE accounts ADD COLUMN userId VARCHAR(64)")
+
+    if "nickname" not in columns:
+        syncConn.exec_driver_sql("ALTER TABLE accounts ADD COLUMN nickname VARCHAR(128)")

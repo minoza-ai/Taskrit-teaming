@@ -1,6 +1,7 @@
 """Taskrit TeamingOn Engine — FastAPI 엔트리 포인트."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -31,5 +32,19 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=3002, reload=True)
+
+    project_root = Path(__file__).resolve().parents[1]
+    app_dir = project_root / "app"
+    venv_dir = project_root / ".venv"
+
+    # Restrict file watching to project source to prevent reload loops caused by
+    # changes inside .venv/site-packages.
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=3002,
+        reload=True,
+        reload_dirs=[str(app_dir)],
+        reload_excludes=[str(venv_dir), "**/site-packages/**"],
+    )
 

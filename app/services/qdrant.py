@@ -5,8 +5,8 @@ from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.config import settings
 
-# 로컬 파일 Qdrant (서버 재시작 후에도 데이터 유지)
-qdrant = QdrantClient(path="./qdrant_data")
+_qdrant: QdrantClient | None = None
+_collections_initialized = False
 
 ABILITY_COLLECTION = "abilities"
 REQUIREMENT_COLLECTION = "requirements"
@@ -16,6 +16,9 @@ SIMILARITY_THRESHOLD = 0.25
 
 def initCollections():
     """Qdrant 컬렉션 초기화."""
+    global _collections_initialized
+    qdrant = _getClient()
+
     for name in [ABILITY_COLLECTION, REQUIREMENT_COLLECTION]:
         if not qdrant.collection_exists(name):
             qdrant.create_collection(
@@ -25,9 +28,25 @@ def initCollections():
                     distance=Distance.COSINE,
                 ),
             )
+    _collections_initialized = True
+
+
+def _getClient() -> QdrantClient:
+    global _qdrant
+    if _qdrant is None:
+        # 로컬 파일 Qdrant (서버 재시작 후에도 데이터 유지)
+        _qdrant = QdrantClient(path="./qdrant_data")
+    return _qdrant
+
+
+def _getReadyClient() -> QdrantClient:
+    if not _collections_initialized:
+        initCollections()
+    return _getClient()
 
 def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
     """능력치 벡터 저장."""
+    qdrant = _getReadyClient()
     qdrant.upsert(
         collection_name=ABILITY_COLLECTION,
         points=[
@@ -41,6 +60,7 @@ def upsertAbility(abilityId: str, accountId: str, vector: list[float]):
 
 def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
     """요구 능력치 벡터 저장."""
+    qdrant = _getReadyClient()
     qdrant.upsert(
         collection_name=REQUIREMENT_COLLECTION,
         points=[
@@ -54,6 +74,7 @@ def upsertRequirement(requirementId: str, accountId: str, vector: list[float]):
 
 def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
     """능력치 벡터 유사도 검색 (일반 사용자/에이전트/로봇)."""
+    qdrant = _getReadyClient()
     results = qdrant.query_points(
         collection_name=ABILITY_COLLECTION,
         query=vector,
@@ -71,6 +92,7 @@ def searchAbilities(vector: list[float], limit: int = 20) -> list[dict]:
 
 def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
     """요구 능력치 벡터 유사도 검색 (에셋의 요구 능력치 기반 검색)."""
+    qdrant = _getReadyClient()
     results = qdrant.query_points(
         collection_name=REQUIREMENT_COLLECTION,
         query=vector,
@@ -88,6 +110,7 @@ def searchRequirements(vector: list[float], limit: int = 10) -> list[dict]:
 
 def getRequirementVector(requirementId: str) -> list[float] | None:
     """ID로 요구 능력치 벡터(임베딩) 즉시 조회."""
+    qdrant = _getReadyClient()
     try:
         results = qdrant.retrieve(
             collection_name=REQUIREMENT_COLLECTION,
@@ -104,11 +127,10 @@ def deleteByAccount(accountId: str):
     """계정 삭제 시 벡터도 제거."""
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
+    qdrant = _getReadyClient()
+
     accountFilter = Filter(
         must=[FieldCondition(key="accountId", match=MatchValue(value=accountId))]
     )
     for collection in [ABILITY_COLLECTION, REQUIREMENT_COLLECTION]:
         qdrant.delete(collection_name=collection, points_selector=accountFilter)
-
-# 서버 시작 시 컬렉션 초기화
-initCollections()

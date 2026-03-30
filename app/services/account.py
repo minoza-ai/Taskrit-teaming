@@ -14,6 +14,8 @@ from app.services import qdrant as qdrantService
 async def createAccount(
     db: AsyncSession,
     accountId: str,
+    userId: str | None,
+    nickname: str | None,
     accountType: str,
     abilityText: str,
     cost: int = 0,
@@ -22,6 +24,8 @@ async def createAccount(
     """계정 생성 — 능력치 분해 + 임베딩 포함."""
     account = Account(
         accountId=accountId,
+        userId=userId,
+        nickname=nickname,
         type=accountType,
         abilityText=abilityText,
         cost=cost,
@@ -83,6 +87,8 @@ async def updateAccount(
     db: AsyncSession,
     accountId: str,
     abilityText: str | None,
+    userId: str | None,
+    nickname: str | None,
     availability: bool | None,
     cost: int | None,
     skipAi: bool = False,
@@ -96,6 +102,10 @@ async def updateAccount(
         account.availability = availability
     if cost is not None:
         account.cost = cost
+    if userId is not None:
+        account.userId = userId
+    if nickname is not None:
+        account.nickname = nickname
 
     if abilityText is not None and abilityText != account.abilityText:
         account.abilityText = abilityText

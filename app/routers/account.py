@@ -22,6 +22,8 @@ async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
         account = await accountService.createAccount(
             db,
             body.accountId,
+            body.userId,
+            body.nickname,
             body.type,
             body.abilityText,
             body.cost,
@@ -50,6 +52,8 @@ async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = 
             db,
             accountId,
             body.abilityText,
+            body.userId,
+            body.nickname,
             body.availability,
             body.cost,
             body.skipAi,

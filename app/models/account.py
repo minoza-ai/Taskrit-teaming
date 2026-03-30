@@ -12,6 +12,8 @@ class Account(Base):
     __tablename__ = "accounts"
 
     accountId: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    userId: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    nickname: Mapped[str | None] = mapped_column(String(128), nullable=True, default=None)
     type: Mapped[str] = mapped_column(String(16))  # human, agent, robot, asset
     elo: Mapped[int] = mapped_column(Integer, default=1000)
     abilityText: Mapped[str] = mapped_column(Text, default="")

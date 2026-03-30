@@ -7,6 +7,8 @@ class AccountCreate(BaseModel):
     """계정 생성 요청."""
 
     accountId: str
+    userId: Optional[str] = None
+    nickname: Optional[str] = None
     type: str  # human, agent, robot, asset
     abilityText: str
     cost: int = 0
@@ -17,6 +19,8 @@ class AccountUpdate(BaseModel):
     """계정 상태 수정 요청."""
 
     abilityText: Optional[str] = None
+    userId: Optional[str] = None
+    nickname: Optional[str] = None
     availability: Optional[bool] = None
     cost: Optional[int] = None
     skipAi: bool = False
@@ -26,6 +30,8 @@ class AccountResponse(BaseModel):
     """계정 응답."""
 
     accountId: str
+    userId: Optional[str] = None
+    nickname: Optional[str] = None
     type: str
     elo: int
     abilityText: str

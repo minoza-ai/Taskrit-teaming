@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from app.database import initDb
+from app.database import closeDb, initDb
 from app.routers import account, ability, task, search
 
 @asynccontextmanager
@@ -13,6 +13,7 @@ async def lifespan(app: FastAPI):
     """서버 시작 시 DB 테이블 생성."""
     await initDb()
     yield
+    await closeDb()
 
 app = FastAPI(
     title="Taskrit TeamingOn Engine",

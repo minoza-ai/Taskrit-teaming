@@ -13,7 +13,6 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/taskrit-teaming
   CONTAINER_NAME: taskrit-teaming
   CONTAINER_PORT: 3002
-  VOLUME_DB: taskrit-teaming-db
   VOLUME_QDRANT: taskrit-teaming-qdrant
 
 jobs:
@@ -100,12 +99,9 @@ jobs:
             echo "Starting new container..."
             # Create host directories for persistence
             mkdir -p ~/taskrit_data/teaming/qdrant_data
-            mkdir -p ~/taskrit_data/teaming/db
             
             # Start container
-            # Mapping ~/taskrit_data/teaming/db -> /app/db
             # Mapping ~/taskrit_data/teaming/qdrant_data -> /app/qdrant_data
-            # DATABASE_URL uses /app/db/taskrit.db
             
             docker run -d \
               --name "${{ env.CONTAINER_NAME }}" \
@@ -115,8 +111,8 @@ jobs:
               -e TZ=Asia/Seoul \
               -e GEMINI_API="${{ secrets.GEMINI_API }}" \
               -e HMAC_KEY="${{ secrets.HMAC_KEY }}" \
-              -e DATABASE_URL="sqlite+aiosqlite:///./db/taskrit.db" \
-              -v ~/taskrit_data/teaming/db:/app/db \
+              -e MONGODB_URI="mongodb://mongo:27017" \
+              -e MONGODB_DB="taskrit" \
               -v ~/taskrit_data/teaming/qdrant_data:/app/qdrant_data \
               "${{ env.IMAGE_NAME }}:latest"
             

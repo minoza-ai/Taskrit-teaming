@@ -1,7 +1,7 @@
 """계정 검색 엔드포인트."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import getDb
 from app.schemas.search import SearchRequest, SearchResponse, SearchResult
@@ -11,7 +11,7 @@ router = APIRouter(tags=["Search"])
 
 
 @router.post("/Search", response_model=SearchResponse)
-async def searchAccounts(body: SearchRequest, db: AsyncSession = Depends(getDb)):
+async def searchAccounts(body: SearchRequest, db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 검색 — 키워드 또는 벡터 유사도 모드."""
     if not body.query.strip():
         raise HTTPException(status_code=422, detail="Query must not be empty")

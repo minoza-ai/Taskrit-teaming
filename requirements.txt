@@ -1,10 +1,9 @@
 fastapi
 uvicorn[standard]
-sqlalchemy
-aiosqlite
+motor
+pymongo
 pydantic
 pydantic-settings
-greenlet
 google-genai
 qdrant-client
 python-dotenv

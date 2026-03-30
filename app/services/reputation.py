@@ -1,31 +1,28 @@
 """ELO 평판 엔진."""
 
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.account import Account
-from app.models.task import Task
 from app.services import gemini
-from app.services import qdrant as qdrantService
 
 # ELO 변동 상수
 BASE_ELO = 1000
 K_FACTOR = 32  # ELO 변동 계수
 
-async def estimateTaskElo(db: AsyncSession, request: str, requiredDate: int, requiredElo: int, requiredCost: int) -> int:
+async def estimateTaskElo(db: AsyncIOMotorDatabase, request: str, requiredDate: int, requiredElo: int, requiredCost: int) -> int:
     """태스크 난이도 ELO 산정. 기존 유사 태스크의 elo를 기준으로 삼고, 난이도 요소를 가감."""
     baseElo = BASE_ELO
 
     # 유사 태스크 검색 시도
     try:
-        vector = await gemini.embedText(request)
-        # abilities 컬렉션에서 유사도 검색으로 관련 계정 → 태스크 찾기
-        existingTasks = (await db.execute(
-            select(Task.elo).where(Task.status.in_(["completed", "matched"])).limit(20)
-        )).scalars().all()
+        await gemini.embedText(request)
+        # 유사 태스크가 아닌 최근 완료/매칭 이력의 Elo 평균을 baseline으로 사용
+        existingTasks = await db.tasks.find(
+            {"status": {"$in": ["completed", "matched"]}},
+            {"_id": 0, "elo": 1},
+        ).limit(20).to_list(length=20)
 
         if existingTasks:
-            baseElo = int(sum(existingTasks) / len(existingTasks))
+            baseElo = int(sum(t.get("elo", BASE_ELO) for t in existingTasks) / len(existingTasks))
     except Exception:
         pass
 
@@ -50,24 +47,29 @@ async def estimateTaskElo(db: AsyncSession, request: str, requiredDate: int, req
 
     return baseElo + eloAdjustment
 
-async def updateEloOnComplete(db: AsyncSession, taskId: str, success: bool):
+async def updateEloOnComplete(db: AsyncIOMotorDatabase, taskId: str, success: bool):
     """태스크 완료/실패 시 참여 계정의 ELO 변동."""
-    task = await db.get(Task, taskId)
+    task = await db.tasks.find_one({"taskId": taskId}, {"_id": 0})
     if not task:
         return
 
-    account = await db.get(Account, task.accountId)
+    account = await db.accounts.find_one({"accountId": task.get("accountId")}, {"_id": 0})
     if not account:
         return
 
-    taskElo = task.elo
+    taskElo = task.get("elo", BASE_ELO)
+    currentElo = account.get("elo", BASE_ELO)
 
     # ELO 변동 계산 (간소화된 Elo 레이팅)
-    expected = 1 / (1 + 10 ** ((taskElo - account.elo) / 400))
+    expected = 1 / (1 + 10 ** ((taskElo - currentElo) / 400))
     actual = 1.0 if success else 0.0
     delta = int(K_FACTOR * (actual - expected))
 
-    account.elo = max(0, account.elo + delta)
-    task.status = "completed" if success else "failed"
-
-    await db.commit()
+    await db.accounts.update_one(
+        {"accountId": account["accountId"]},
+        {"$set": {"elo": max(0, currentElo + delta)}},
+    )
+    await db.tasks.update_one(
+        {"taskId": taskId},
+        {"$set": {"status": "completed" if success else "failed"}},
+    )

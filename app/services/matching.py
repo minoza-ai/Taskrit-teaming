@@ -1,16 +1,12 @@
 """하이브리드 매칭 엔진 — 3단계 추출."""
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.account import Account
-from app.models.ability import Ability
-from app.models.requirement import Requirement
 from app.services import gemini
 from app.services import qdrant as qdrantService
 from app.utils.scoring import calcHybridScore, normalizeValue
 
-async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
+async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
     """태스크에 필요한 능력치별 매칭 결과 반환.
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
@@ -51,35 +47,37 @@ async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo:
         # 후보 계정 정보 로드 + 1차 하드 필터
         candidateByAccount: dict[str, dict] = {}
         for hit in mergedHits:
-            account = await db.get(Account, hit["accountId"])
+            account = await db.accounts.find_one({"accountId": hit["accountId"]}, {"_id": 0})
             if not account:
                 continue
 
             # 1차: 하드 리미트 필터
-            if not account.availability:
+            if not account.get("availability", True):
                 continue
-            if requiredElo > 0 and account.elo < requiredElo:
+            accountElo = int(account.get("elo", 1000))
+            if requiredElo > 0 and accountElo < requiredElo:
                 continue
 
             # 능력치 텍스트 조회
             abilityText = ""
             if hit["source"] == "ability" and hit["abilityId"]:
-                ability = await db.get(Ability, hit["abilityId"])
-                abilityText = ability.abilityText if ability else ""
+                ability = await db.abilities.find_one({"abilityId": hit["abilityId"]}, {"_id": 0, "abilityText": 1})
+                abilityText = ability.get("abilityText", "") if ability else ""
             elif hit["source"] == "requirement" and hit["requirementId"]:
-                requirement = await db.get(Requirement, hit["requirementId"])
-                abilityText = requirement.abilityText if requirement else ""
+                requirement = await db.requirements.find_one({"requirementId": hit["requirementId"]}, {"_id": 0, "abilityText": 1})
+                abilityText = requirement.get("abilityText", "") if requirement else ""
 
             if not abilityText:
-                abilityText = account.abilityText
+                abilityText = account.get("abilityText", "")
 
             # 에셋이면 능동 계정 연결 탐색
             linkedAssetId = None
             operatorCost = 0
-            if account.type == "asset":
-                linkedAssetId, operatorCost = await _findOperator(db, account.accountId, requiredElo, requiredCost)
+            accountType = account.get("type", "")
+            if accountType == "asset":
+                linkedAssetId, operatorCost = await _findOperator(db, account["accountId"], requiredElo, requiredCost)
 
-            totalCost = account.cost + operatorCost
+            totalCost = int(account.get("cost", 0)) + operatorCost
             
             # 합산된 총 비용으로 하드 리미트 재검증
             if requiredCost > 0 and totalCost > requiredCost:
@@ -87,23 +85,23 @@ async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo:
 
             similarity = hit["similarity"]
             # 요구 능력치 기반으로 발견된 에셋은 소폭 가산해 후보로 노출되기 쉽게 조정
-            if hit["source"] == "requirement" and account.type == "asset":
+            if hit["source"] == "requirement" and accountType == "asset":
                 similarity = min(1.0, similarity + 0.12)  # 0.07 → 0.12로 상향 (에셋 가산점 증대)
 
             candidate = {
-                "accountId": account.accountId,
-                "accountType": account.type,
+                "accountId": account["accountId"],
+                "accountType": accountType,
                 "abilityText": abilityText,
                 "similarity": similarity,
-                "elo": account.elo,
+                "elo": accountElo,
                 "cost": totalCost,
-                "joinDate": account.joinDate,
+                "joinDate": account.get("joinDate"),
                 "linkedAssetId": linkedAssetId,
             }
 
-            prev = candidateByAccount.get(account.accountId)
+            prev = candidateByAccount.get(account["accountId"])
             if not prev or candidate["similarity"] > prev["similarity"]:
-                candidateByAccount[account.accountId] = candidate
+                candidateByAccount[account["accountId"]] = candidate
 
         candidates = list(candidateByAccount.values())
 
@@ -157,33 +155,31 @@ async def matchForTask(db: AsyncSession, requiredSkills: list[str], requiredElo:
 
     return results
 
-async def _findOperator(db: AsyncSession, assetAccountId: str, requiredElo: int, requiredCost: int) -> tuple[str | None, int]:
+async def _findOperator(db: AsyncIOMotorDatabase, assetAccountId: str, requiredElo: int, requiredCost: int) -> tuple[str | None, int]:
     """에셋의 요구 능력치를 충족하는 능동 계정을 탐색. 반환치: (조종사ID, 조종사비용)"""
-    from app.models.requirement import Requirement
-
-    reqs = (await db.execute(
-        select(Requirement).where(Requirement.accountId == assetAccountId)
-    )).scalars().all()
+    reqs = await db.requirements.find({"accountId": assetAccountId}, {"_id": 0, "requirementId": 1}).to_list(length=100)
 
     if not reqs:
         return None, 0
 
     for req in reqs:
-        vector = qdrantService.getRequirementVector(req.requirementId)
+        vector = qdrantService.getRequirementVector(req["requirementId"])
         if not vector:
             continue
             
         hits = qdrantService.searchAbilities(vector, limit=5)
         for hit in hits:
-            account = await db.get(Account, hit["accountId"])
-            if not account or account.accountId == assetAccountId or account.type == "asset":
+            account = await db.accounts.find_one({"accountId": hit["accountId"]}, {"_id": 0})
+            if not account or account["accountId"] == assetAccountId or account.get("type") == "asset":
                 continue
-            if not account.availability:
+            if not account.get("availability", True):
                 continue
-            if requiredElo > 0 and account.elo < requiredElo:
+            accountElo = int(account.get("elo", 1000))
+            accountCost = int(account.get("cost", 0))
+            if requiredElo > 0 and accountElo < requiredElo:
                 continue
-            if requiredCost > 0 and account.cost > requiredCost:
+            if requiredCost > 0 and accountCost > requiredCost:
                 continue
-            return account.accountId, account.cost
+            return account["accountId"], accountCost
 
     return None, 0

@@ -20,10 +20,11 @@ pip install -r requirements.txt
 루트 디렉토리에 `.env` 파일을 생성하고 다음 값을 입력합니다.
 ```ini
 GEMINI_API=AAAAAA...
-DATABASE_URL=sqlite+aiosqlite:///./taskrit.db
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB=taskrit
 HMAC_KEY=000000...
 ```
-> ※ 로컬 환경의 경우 `taskrit.db` (SQLite) 및 `qdrant_data` (로컬 Qdrant) 폴더가 자동 생성 및 활용됩니다.
+> ※ 로컬 환경에서는 MongoDB 인스턴스가 실행 중이어야 하며, `qdrant_data` 폴더(로컬 Qdrant)는 기존과 같이 활용됩니다.
 
 **3. 서버 실행**
 가상 환경을 활성화하고 서버를 실행합니다.

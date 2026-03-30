@@ -1,7 +1,7 @@
 """계정 CRUD 엔드포인트."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import getDb
 from app.schemas.account import AccountCreate, AccountUpdate, AccountResponse, AccountComponents
@@ -11,7 +11,7 @@ from app.utils.hmac import verifyHmac
 router = APIRouter(tags=["Account"])
 
 @router.post("/Account", response_model=AccountResponse, status_code=201)
-async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
+async def createAccount(body: AccountCreate, db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 생성 (능력치 분해 + 임베딩 포함)."""
     verifyHmac(body.accountId, body.hmac)
     existing = await accountService.getAccount(db, body.accountId)
@@ -36,7 +36,7 @@ async def createAccount(body: AccountCreate, db: AsyncSession = Depends(getDb)):
     return account
 
 @router.get("/Account/{accountId}", response_model=AccountResponse)
-async def getAccount(accountId: str, db: AsyncSession = Depends(getDb)):
+async def getAccount(accountId: str, db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 조회."""
     account = await accountService.getAccount(db, accountId)
     if not account:
@@ -44,7 +44,7 @@ async def getAccount(accountId: str, db: AsyncSession = Depends(getDb)):
     return account
 
 @router.patch("/Account/{accountId}", response_model=AccountResponse)
-async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = Depends(getDb)):
+async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 상태 수정."""
     verifyHmac(accountId, body.hmac)
     try:
@@ -67,7 +67,7 @@ async def updateAccount(accountId: str, body: AccountUpdate, db: AsyncSession = 
     return account
 
 @router.delete("/Account/{accountId}", status_code=204)
-async def deleteAccount(accountId: str, hmac: str = Query(...), db: AsyncSession = Depends(getDb)):
+async def deleteAccount(accountId: str, hmac: str = Query(...), db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 삭제."""
     verifyHmac(accountId, hmac)
     success = await accountService.deleteAccount(db, accountId)
@@ -75,7 +75,7 @@ async def deleteAccount(accountId: str, hmac: str = Query(...), db: AsyncSession
         raise HTTPException(status_code=404, detail="Account not found")
 
 @router.get("/Account/{accountId}/Components", response_model=AccountComponents)
-async def getAccountComponents(accountId: str, db: AsyncSession = Depends(getDb)):
+async def getAccountComponents(accountId: str, db: AsyncIOMotorDatabase = Depends(getDb)):
     """계정 구성요소 조회 (능력치/요구 능력치 ID 목록)."""
     components = await accountService.getComponents(db, accountId)
     if not components:

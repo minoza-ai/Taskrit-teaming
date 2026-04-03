@@ -10,48 +10,67 @@
 
 ## ⚙️ 실행 및 세팅 방법
 
-**1. 파이썬 환경 설정**
-프로젝트 루트 경로에서 필요한 패키지를 설치합니다.
+로컬에서 엔진을 구동하고 테스트하기 위해 아래의 순서대로 환경을 구성해 주세요. 이 프로젝트는 데이터베이스로 **MongoDB**와 **Qdrant**(벡터 DB)를 필수적으로 요구합니다.
+
+### 1단계: 로컬 DB 환경 구축 (Docker 권장)
+로컬에 DB가 설치되어 있지 않다면, Docker를 사용하여 가장 쉽고 빠르게 띄울 수 있습니다. (Docker가 설치되어 있어야 합니다.)
+
 ```bash
+# 1. MongoDB 컨테이너 백그라운드 실행
+docker run -d --name taskrit-mongo -p 27017:27017 mongo:latest
+
+# 2. Qdrant 컨테이너 백그라운드 실행 (로컬 qdrant_data 폴더와 마운트)
+# Mac/Linux:
+docker run -d --name taskrit-qdrant -p 6333:6333 -v $(pwd)/qdrant_data:/qdrant/storage qdrant/qdrant
+# Windows (PowerShell):
+docker run -d --name taskrit-qdrant -p 6333:6333 -v ${PWD}/qdrant_data:/qdrant/storage qdrant/qdrant
+```
+> 참고: `taskrit-qdrant` 컨테이너는 프로젝트 루트의 `qdrant_data/` 폴더에 데이터를 저장하므로, 컨테이너를 재시작해도 벡터 데이터가 유지됩니다.
+
+### 2단계: 환경 변수 설정
+프로젝트 루트 경로에 있는 `.env.example` 파일을 복사하여 `.env` 파일을 생성하고 내부 값을 채웁니다.
+
+```ini
+# 반드시 실제 구동 가능한 Gemini API 키를 입력해야 엔진이 작동합니다.
+GEMINI_API=당신의_제미나이_api키_입력
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB=taskrit
+HMAC_KEY=12345678#테스트용아무문자열
+```
+
+### 3단계: 파이썬 가상환경 설정 및 패키지 설치
+Python 환경에 필수 의존성 라이브러리를 설치합니다.
+
+```bash
+# [Mac/Linux]
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# [Windows]
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**2. 환경 변수 설정**
-루트 디렉토리에 `.env` 파일을 생성하고 다음 값을 입력합니다.
-```ini
-GEMINI_API=AAAAAA...
-MONGODB_URI=mongodb://localhost:27017
-MONGODB_DB=taskrit
-HMAC_KEY=000000...
-```
-> ※ 로컬 환경에서는 MongoDB 인스턴스가 실행 중이어야 하며, `qdrant_data` 폴더(로컬 Qdrant)는 기존과 같이 활용됩니다.
-
-**3. 서버 실행**
-가상 환경을 활성화하고 서버를 실행합니다.
-```bash
-# 가상환경 활성화 (macOS/Linux)
-source .venv/bin/activate
-
-# 권장: .venv 감시 제외가 이미 반영된 실행 방식
-python -m app.main
-```
-또는
-```bash
-# uvicorn CLI를 직접 사용할 경우 (.venv 제외 필수)
-python -m uvicorn app.main:app --reload --port 3002 --reload-dir app --reload-exclude "$PWD/.venv"
-```
-> ※ 로컬 개발 시 3002 포트를 사용합니다. (프론트엔드/백엔드 연동)
+### 4단계: 서버 구동
+가상환경이 활성화된 상태에서 메인 앱을 실행합니다. 메인 백엔드와의 통신을 위해 3002번 포트를 권장 포트로 사용합니다.
 
 ```bash
-# Mac/Linux
-source .venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload --reload-dir app --reload-exclude "$PWD/.venv"
-
-# Windows
-.venv\Scripts\activate
-uvicorn app.main:app --host 0.0.0.0 --port 3002 --reload --reload-dir app --reload-exclude "%CD%\\.venv"
+python -m uvicorn app.main:app --reload --port 3002 --reload-dir app
 ```
-서버는 `http://localhost:3002` 에서 구동됩니다.
+> 서버 구동 후 브라우저에서 `http://localhost:3002/docs` 로 접속하시면, 편리하게 API를 직접 테스트해 보실 수 있는 Swagger UI 화면이 나타납니다!
+
+### 5단계: 로컬 터미널 뷰어로 데이터 확인
+API 테스트 중 언제든 내부 DB 상태를 편하게 조회하고 싶다면, 함께 마련된 스크립트를 터미널에서 실행해 보세요.
+
+```bash
+# 저장된 주요 컬렉션 내용 요약 출력
+python .\test\dbview.py
+
+# 특정 컬렉션 데이터 자세히 보기 (예: teaming)
+python .\test\dbview.py teaming
+```
 
 ---
 

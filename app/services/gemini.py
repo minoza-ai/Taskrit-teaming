@@ -14,11 +14,14 @@ logger = logging.getLogger(__name__)
 
 client = genai.Client(api_key=settings.geminiApi)
 
-# 텍스트 생성 모델 폴백 순서: flash → flash-lite → pro
+# 텍스트 생성 모델 폴백 순서: flash-lite → flash → pro → flash-lite → flash → pro
 SPLITTING_MODELS = [
-    "gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview",
     "gemini-3.1-pro-preview",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
 ]
 EMBEDDING_MODEL = "gemini-embedding-2-preview"
 

@@ -16,7 +16,7 @@ load_dotenv()
 
 MONGO_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGODB_DB", "taskrit")
-COLLECTIONS = ["accounts", "abilities", "requirements", "tasks"]
+COLLECTIONS = ["teaming", "abilities", "requirements", "tasks"]
 
 
 def _crop(value: object, max_len: int = 80) -> str:

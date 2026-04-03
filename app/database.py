@@ -25,30 +25,6 @@ async def initDb():
     _client = AsyncIOMotorClient(settings.mongoUri)
     _db = _client[settings.mongoDbName]
 
-    # Legacy 컬렉션(accounts) -> teaming 최소 스키마 마이그레이션
-    collectionNames = await _db.list_collection_names()
-    if "accounts" in collectionNames:
-        cursor = _db.accounts.find(
-            {},
-            {"_id": 0, "accountId": 1, "type": 1, "elo": 1, "availability": 1, "cost": 1},
-        )
-        async for legacy in cursor:
-            accountId = legacy.get("accountId")
-            if not isinstance(accountId, str) or not accountId:
-                continue
-            await _db.teaming.update_one(
-                {"user_uuid": accountId},
-                {
-                    "$setOnInsert": {
-                        "user_uuid": accountId,
-                        "type": legacy.get("type", "human"),
-                        "elo": int(legacy.get("elo", 1000)),
-                        "availability": bool(legacy.get("availability", True)),
-                        "cost": int(legacy.get("cost", 0)),
-                    }
-                },
-                upsert=True,
-            )
 
     await _db.teaming.create_index([("user_uuid", ASCENDING)], unique=True)
     await _db.teaming.create_index([("type", ASCENDING)])

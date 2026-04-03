@@ -2,12 +2,12 @@
 
 from datetime import datetime
 
-# 계정 타입별 가중치 (W1=유사도, W2=elo, W3=비용효율, W4=신규보너스)
+# 계정 타입별 가중치
 WEIGHTS = {
-    "human": {"similarity": 0.25, "elo": 0.40, "cost": 0.20, "newBonus": 0.15},
-    "agent": {"similarity": 0.45, "elo": 0.20, "cost": 0.20, "newBonus": 0.15},
-    "robot": {"similarity": 0.45, "elo": 0.20, "cost": 0.20, "newBonus": 0.15},
-    "asset": {"similarity": 0.35, "elo": 0.10, "cost": 0.40, "newBonus": 0.15},  # similarity 가중치 상향 (자산도 주요 매칭 기준)
+    "human": {"vector": 0.30, "keyword": 0.30, "elo": 0.30, "cost": 0.05, "newBonus": 0.05},
+    "agent": {"vector": 0.35, "keyword": 0.35, "elo": 0.15, "cost": 0.10, "newBonus": 0.05},
+    "robot": {"vector": 0.35, "keyword": 0.35, "elo": 0.15, "cost": 0.10, "newBonus": 0.05},
+    "asset": {"vector": 0.30, "keyword": 0.30, "elo": 0.15, "cost": 0.20, "newBonus": 0.05},
 }
 
 NEW_BONUS_DAYS = 30  # 신규 보너스 적용 기간 (일)
@@ -30,7 +30,8 @@ def calcNewBonus(joinDate: datetime) -> float:
 
 def calcHybridScore(
     accountType: str,
-    normSimilarity: float,
+    normVectorSim: float,
+    normKeywordSim: float,
     normElo: float,
     normCost: float,
     joinDate: datetime,
@@ -39,9 +40,11 @@ def calcHybridScore(
     가중치와 별개로 공정한 범위(0~1) 내에서 동작하도록 정규화된 값들을 사용.
     """
     w = WEIGHTS.get(accountType, WEIGHTS["human"])
-    return (
-        w["similarity"] * normSimilarity
+    score = (
+        w["vector"] * normVectorSim
+        + w["keyword"] * normKeywordSim
         + w["elo"] * normElo
         + w["cost"] * normCost
         + w["newBonus"] * calcNewBonus(joinDate)
     )
+    return max(0.0, score)

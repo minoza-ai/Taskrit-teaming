@@ -87,7 +87,34 @@ def _profileFallbackHits(requiredSkill: str, profileByUser: dict[str, dict]) -> 
     hits.sort(key=lambda item: item["similarity"], reverse=True)
     return hits[:PROFILE_FALLBACK_LIMIT]
 
-async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
+def _computeKeywordScore(req: dict, cand: dict) -> float:
+    score = 0.5  # Base score
+    reqJob = req.get("job")
+    candJob = cand.get("job")
+    if reqJob and candJob:
+        if reqJob.replace(" ", "") == candJob.replace(" ", ""):
+            score += 0.2
+        else:
+            score -= 0.6  # 점수를 깎되 크게 깎아
+    
+    reqStack = set(s.lower() for s in (req.get("techStack") or []))
+    candStack = set(s.lower() for s in (cand.get("techStack") or []))
+    if reqStack:
+        overlap = len(reqStack & candStack)
+        if overlap > 0:
+            score += 0.3 * (overlap / len(reqStack))
+        else:
+            score -= 0.5  # 필수 스택 누락 시 크게 깎아
+
+    reqDomain = req.get("domain")
+    candDomain = cand.get("domain")
+    if reqDomain and candDomain and reqDomain == candDomain:
+        score += 0.1
+        
+    return max(0.0, min(1.0, score))
+
+
+async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[dict], requiredElo: int = 0, requiredCost: int = 0, requireHuman: bool = False) -> list[dict]:
     """태스크에 필요한 능력치별 매칭 결과 반환.
     Returns:
         [{"requiredAbility": str, "candidates": [...]}, ...]
@@ -119,10 +146,12 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
             }
 
     # 배치 임베딩 — 모든 요구 능력치를 벡터화
-    vectors = await gemini.embedTexts(requiredSkills)
+    texts_to_embed = [s.get("abilityText", "") for s in requiredSkills]
+    vectors = await gemini.embedTexts(texts_to_embed)
 
     results = []
-    for skill, vector in zip(requiredSkills, vectors):
+    for skillObj, vector in zip(requiredSkills, vectors):
+        skill_text = skillObj.get("abilityText", "")
         # 2차: 벡터 유사도 검색 — 능력치(일반) + 요구능력치(에셋)
         abilityHits = qdrantService.searchAbilities(vector, limit=30)
         requirementHits = qdrantService.searchRequirements(vector, limit=30)  # 에셋 검색 강화
@@ -147,10 +176,10 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
             for hit in requirementHits
         ]
 
-        mergedHits.extend(_profileFallbackHits(skill, profileByUser))
+        mergedHits.extend(_profileFallbackHits(skill_text, profileByUser))
 
         if not mergedHits:
-            results.append({"requiredAbility": skill, "candidates": []})
+            results.append({"requiredAbility": skill_text, "candidates": []})
             continue
 
         # 후보 계정 정보 로드 + 1차 하드 필터
@@ -168,14 +197,19 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
             if requiredElo > 0 and accountElo < requiredElo:
                 continue
 
-            # 능력치 텍스트 조회
+            # 능력치 텍스트 조회 및 키워드 기반 정보 수집
             abilityText = ""
+            keywordScore = 0.5
             if hit["source"] == "ability" and hit["abilityId"]:
-                ability = await db.abilities.find_one({"abilityId": hit["abilityId"]}, {"_id": 0, "abilityText": 1})
-                abilityText = ability.get("abilityText", "") if ability else ""
+                ability = await db.abilities.find_one({"abilityId": hit["abilityId"]}, {"_id": 0})
+                if ability:
+                    abilityText = ability.get("abilityText", "")
+                    keywordScore = _computeKeywordScore(skillObj, ability)
             elif hit["source"] == "requirement" and hit["requirementId"]:
-                requirement = await db.requirements.find_one({"requirementId": hit["requirementId"]}, {"_id": 0, "abilityText": 1})
-                abilityText = requirement.get("abilityText", "") if requirement else ""
+                requirement = await db.requirements.find_one({"requirementId": hit["requirementId"]}, {"_id": 0})
+                if requirement:
+                    abilityText = requirement.get("abilityText", "")
+                    keywordScore = _computeKeywordScore(skillObj, requirement)
             else:
                 abilityText = profileByUser.get(userUuid, {}).get("profile_bio", "")
 
@@ -205,6 +239,7 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
                 "accountType": accountType,
                 "abilityText": abilityText,
                 "similarity": similarity,
+                "keywordScore": keywordScore,
                 "elo": accountElo,
                 "cost": totalCost,
                 "joinDate": _toDatetime(profileByUser.get(userUuid, {}).get("created_at")),
@@ -212,7 +247,8 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
             }
 
             prev = candidateByAccount.get(account["user_uuid"])
-            if not prev or candidate["similarity"] > prev["similarity"]:
+            # 총합 기초 평가치 기준으로 베스트 히트 유지
+            if not prev or (candidate["similarity"] + candidate["keywordScore"]) > (prev["similarity"] + prev["keywordScore"]):
                 candidateByAccount[account["user_uuid"]] = candidate
 
         candidates = list(candidateByAccount.values())
@@ -221,21 +257,25 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
         if candidates:
             minSim = min(c["similarity"] for c in candidates)
             maxSim = max(c["similarity"] for c in candidates)
+            minKw = min(c["keywordScore"] for c in candidates)
+            maxKw = max(c["keywordScore"] for c in candidates)
             minElo = min(c["elo"] for c in candidates)
             maxElo = max(c["elo"] for c in candidates)
             minCost = min(c["cost"] for c in candidates)
             maxCost = max(c["cost"] for c in candidates)
         else:
-            minSim = maxSim = minElo = maxElo = minCost = maxCost = 0
+            minSim = maxSim = minKw = maxKw = minElo = maxElo = minCost = maxCost = 0
 
         for c in candidates:
             normSim = normalizeValue(c["similarity"], minSim, maxSim)
+            normKw = normalizeValue(c["keywordScore"], minKw, maxKw)
             normElo = normalizeValue(c["elo"], minElo, maxElo)
             normCost = normalizeValue(c["cost"], minCost, maxCost, reverse=True)
 
             score = calcHybridScore(
                 accountType=c["accountType"],
-                normSimilarity=normSim,
+                normVectorSim=normSim,
+                normKeywordSim=normKw,
                 normElo=normElo,
                 normCost=normCost,
                 joinDate=c["joinDate"],
@@ -251,7 +291,7 @@ async def matchForTask(db: AsyncIOMotorDatabase, requiredSkills: list[str], requ
 
         # 응답 형태로 정리
         results.append({
-            "requiredAbility": skill,
+            "requiredAbility": skill_text,
             "candidates": [
                 {
                     "accountId": c["accountId"],

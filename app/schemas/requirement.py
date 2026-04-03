@@ -6,5 +6,10 @@ class RequirementResponse(BaseModel):
     requirementId: str
     accountId: str
     abilityText: str
+    domain: str | None = None
+    job: str | None = None
+    proficiency: str | None = None
+    techStack: list[str] | None = None
+    legacyDegree: str | None = None
 
     model_config = {"from_attributes": True}

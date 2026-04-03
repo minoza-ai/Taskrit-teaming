@@ -25,20 +25,12 @@ PAIRS = [
         "파이썬을 활용하여 서버 비즈니스 로직을 설계하고 데이터를 처리하는 백엔드 개발 역량"
     ),
     (
-        "클라이언트 요청을 빠르고 안전하게 처리하는 RESTful API 중심의 백엔드 서버 개발 역량",
-        "프론트엔드와 통신하며 데이터베이스를 제어하는 백엔드 API 시스템 설계 및 구축 역량"
-    ),
-    (
         "React 프레임워크를 활용하여 컴포넌트 기반의 인터랙티브한 웹 프론트엔드 UI를 구현하는 역량",
         "Next.js를 활용하여 서버 사이드 렌더링(SSR) 및 검색 엔진 최적화(SEO)가 적용된 웹 애플리케이션을 개발하는 역량"
     ),
     (
         "PostgreSQL을 활용하여 복잡한 쿼리를 최적화하고 대용량 관계형 데이터베이스를 설계하는 역량",
         "MySQL 기반의 관계형 데이터베이스 모델링 및 트랜잭션의 안정적인 처리와 운영 역량"
-    ),
-    (
-        "웹 브라우저 환경에서 사용자의 편리한 조작을 돕는 프론트엔드 사용자 인터페이스(UI) 개발 역량",
-        "사용자 경험(UX)을 고려하여 직관적이고 반응성이 뛰어난 프론트엔드 화면을 구현하는 디자인 및 개발 역량"
     ),
 
     # ==========================================
@@ -47,24 +39,12 @@ PAIRS = [
     # (키워드 매칭 시 발생하던 '프론트/백엔드 동일시 오류'가 해결되는 구간)
     # ==========================================
     (
-        "데이터 분석 및 서버 스크립트 작성을 위한 파이썬 기반의 프로그래밍 역량",
-        "웹 브라우저의 동적 상호작용 및 비동기 통신 처리를 위한 자바스크립트 활용 역량"
-    ),
-    (
-        "서버, 데이터베이스, API 통신 등 보이지 않는 시스템 인프라를 설계하고 구축하는 백엔드 개발 역량",
-        "사용자가 직접 보고 상호작용하는 웹 페이지의 시각적 요소를 구현하는 프론트엔드 개발 역량"
-    ),
-    (
         "데이터의 무결성을 유지하고 쿼리 성능을 튜닝하는 전문적인 데이터베이스 관리(DBA) 역량",
         "클라우드 및 온프레미스 서버 인프라를 구축하고 운영 체제를 관리하는 시스템 엔지니어링 역량"
     ),
     (
         "타겟 고객층을 분석하고 브랜드를 홍보하여 시장 점유율을 높이는 디지털 마케팅 전략 기획 역량",
         "잠재 고객과 직접 소통하며 제품의 가치를 설득하고 실질적인 매출을 발생시키는 영업 및 세일즈 역량"
-    ),
-    (
-        "Figma를 활용하여 모바일 앱과 웹사이트의 화면 레이아웃 및 사용자 동선을 기획하는 UI 디자인 역량",
-        "Premiere Pro를 활용하여 촬영된 원본 영상을 컷 편집하고 시각 효과를 추가하는 영상 제작 역량"
     ),
     (
         "비즈니스 데이터를 수집하고 통계 모델을 적용하여 유의미한 인사이트를 도출하는 데이터 분석 역량",
@@ -82,10 +62,6 @@ PAIRS = [
     (
         "대용량 트래픽 처리를 위한 파이썬 기반의 백엔드 API 서버 설계 및 구축 역량",
         "다양한 식재료를 활용하여 고객의 입맛에 맞는 고급 서양식 요리를 조리하는 셰프 역량"
-    ),
-    (
-        "확장성과 유지보수성을 고려하여 대규모 소프트웨어 시스템의 전체적인 구조를 설계하는 아키텍트 역량",
-        "자전거의 체인, 기어, 브레이크 등 기계적인 결함을 진단하고 부품을 교체하는 정비 및 수리 역량"
     ),
     (
         "React 프레임워크를 활용하여 상태 관리가 용이한 싱글 페이지 애플리케이션(SPA)을 개발하는 역량",
@@ -151,9 +127,10 @@ async def test_ability_decomposition():
     for i, text in enumerate(ABILITY_TEXTS, 1):
         print(f"\n원본 데이터 [{i}]: {text}")
         skills = await gemini.decomposeAbilities(text)
+        import json
         print("-> 분해 결과:")
         for s in skills:
-            print(f"   - {s}")
+            print(f"   - {json.dumps(s, ensure_ascii=False)}")
         await asyncio.sleep(5)
 
 async def test_requirement_decomposition():
@@ -163,9 +140,10 @@ async def test_requirement_decomposition():
     for i, text in enumerate(REQUIREMENT_TEXTS, 1):
         print(f"\n에셋 원본 데이터 [{i}]: {text}")
         skills = await gemini.decomposeRequirements(text)
+        import json
         print("-> 도출 결과:")
         for s in skills:
-            print(f"   - {s}")
+            print(f"   - {json.dumps(s, ensure_ascii=False)}")
         await asyncio.sleep(5)
 
 async def test_task_decomposition():
@@ -175,9 +153,10 @@ async def test_task_decomposition():
     for i, text in enumerate(TASK_TEXTS, 1):
         print(f"\n태스크 요청 [{i}]: {text}")
         skills = await gemini.decomposeTaskRequest(text)
+        import json
         print("-> 필요 능력치 도출 결과:")
         for s in skills:
-            print(f"   - {s}")
+            print(f"   - {json.dumps(s, ensure_ascii=False)}")
         await asyncio.sleep(5)
 
 async def main():

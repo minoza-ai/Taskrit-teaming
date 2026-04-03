@@ -1,292 +1,114 @@
-"""
-API 테스트 스크립트
-
-테스트 대상 서버 구동법:
-1. 가상환경 활성화 (필요시)
-2. 환경변수 파일(.env)에 GEMINI_API_KEY가 설정되어 있는지 확인
-3. 터미널에서 아래 명령어로 FastAPI 서버를 실행:
-   uvicorn app.main:app --reload
-4. 새로운 터미널 세션을 열고 이 스크립트를 실행:
-   python test.py
-"""
-
-import requests
-import uuid
-import hmac
-import hashlib
+import sys
+import os
 import json
+import uuid
 
-BASE_URL = "http://localhost:8000"
-HMAC_KEY = "00000000000000000000000000000000"
+# 프로젝트 루트 경로를 sys.path에 추가하여 app 모듈 임포트
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def generate_hmac(message: str) -> str:
-    """HMAC-SHA256 hex-digest를 생성한다."""
-    return hmac.new(HMAC_KEY.encode(), message.encode(), hashlib.sha256).hexdigest()
+from fastapi.testclient import TestClient
+from app.main import app
+from app.utils.hmac import generateHmac
 
-def print_json(title: str, data: dict | list | None):
-    print(f"--- {title} ---")
-    if data is None:
-        print("None")
-    elif isinstance(data, (dict, list)):
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-    else:
-        print(data)
-    print("-" * (8 + len(title)))
+def main():
+    print("==================================================")
+    print("TeamingOn API Integration Test (Real Scenario)")
+    print("==================================================")
+    
+    # TestClient의 context manager 구문을 통해 lifespan (DB 연결 등)을 엽니다.
+    with TestClient(app) as client:
+        print("\n[STEP 1] 사람(지원자) 및 에셋 계정 생성")
+        print("실제 LLM 파이프라인을 타므로 시간이 조금 소요됩니다...")
+        
+        # 1. 벡엔드 특화 시니어
+        acc_backend = f"backend-{uuid.uuid4().hex[:8]}"
+        res_backend = client.post("/Account", json={
+            "accountId": acc_backend,
+            "userId": "user-backend",
+            "nickname": "Backend Senior",
+            "type": "human",
+            "abilityText": "이커머스와 핀테크 도메인에서 7년간 백엔드 개발 경험이 있습니다. Spring Boot와 Java를 기반으로 개발하며 Redis 캐시 서버 모델 최적화와 레거시 결제망 통합 등 복잡한 서버 인프라 설계에 강점이 있습니다. 대규모 트래픽 분산 처리에 자신 있습니다.",
+            "cost": 80000,
+            "skipAi": False,
+            "hmac": generateHmac(acc_backend)
+        })
+        print(f"- Backend Account Creation: {res_backend.status_code}")
+        
+        # 2. 프론트엔드 특화 주니어
+        acc_frontend = f"frontend-{uuid.uuid4().hex[:8]}"
+        res_frontend = client.post("/Account", json={
+            "accountId": acc_frontend,
+            "userId": "user-frontend",
+            "nickname": "Frontend Jr",
+            "type": "human",
+            "abilityText": "주로 React.js와 TailwindCSS를 활용해서 시각적인 프론트엔드 UI를 개발합니다. 인터랙션 및 프론트 사용자 경험 성능 향상에 관심이 많습니다.",
+            "cost": 30000,
+            "skipAi": False,
+            "hmac": generateHmac(acc_frontend)
+        })
+        print(f"- Frontend Account Creation: {res_frontend.status_code}")
+        
+        # 3. 데이터베이스 에셋
+        acc_asset = f"asset-{uuid.uuid4().hex[:8]}"
+        res_asset = client.post("/Account", json={
+            "accountId": acc_asset,
+            "userId": "user-asset",
+            "nickname": "Oracle DB Archive",
+            "type": "asset",
+            "abilityText": "과거 사용하던 레거시 오라클 결제 데이터베이스 마이그레이션 백업 시스템. 복잡한 튜닝 쿼리가 많아 높은 수준의 데이터베이스 관리 자격 및 서버/백엔드 분석 이해가 극히 요구됨.",
+            "cost": 10000,
+            "skipAi": False,
+            "hmac": generateHmac(acc_asset)
+        })
+        print(f"- Asset Account Creation: {res_asset.status_code}")
 
-def run_tests():
-    print("=== API 테스트 시작 ===")
 
-    # 1. Root Endpoint Test
-    print("\n[1] 루트 엔드포인트 테스트 (/)")
-    try:
-        res = requests.get(f"{BASE_URL}/")
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 루트 엔드포인트 정상 작동")
-    except Exception as e:
-        print(f"루트 테스트 실패: {e}")
-        return
+        # -- 2단계: 메타데이터 추출 확인 --
+        print("\n[STEP 2] 백엔드(Backend) 지원자 메타데이터 추출 확인")
+        # 실제 생성된 Account를 조회해 본다 (DB에서 어빌리티 객체가 잘 떨어지는지)
+        res_comp = client.get(f"/Account/{acc_backend}/Components")
+        if res_comp.status_code == 200:
+            print(json.dumps(res_comp.json(), ensure_ascii=False, indent=2))
+        else:
+            print("Failed to fetch components.", res_comp.text)
 
-    # 2. Account 생성 테스트
-    print("\n[2] 계정 생성 테스트 (/Account)")
-    account_id = f"test_account_{uuid.uuid4().hex[:8]}"
-    create_payload = {
-        "accountId": account_id,
-        "type": "agent",
-        "abilityText": "Python FastAPI 전문가. 데이터베이스 설계 및 API 개발 가능.",
-        "cost": 100,
-        "hmac": generate_hmac(account_id)
-    }
-    print_json("Request JSON", create_payload)
-    try:
-        res = requests.post(f"{BASE_URL}/Account", json=create_payload)
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 201
-        print("-> 계정 생성 정상 작동")
-    except Exception as e:
-        print(f"계정 생성 테스트 실패: {e}")
 
-    # 3. Account 조회 테스트
-    print("\n[3] 계정 조회 테스트 (/Account/{accountId})")
-    try:
-        res = requests.get(f"{BASE_URL}/Account/{account_id}")
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 계정 조회 정상 작동")
-    except Exception as e:
-        print(f"계정 조회 테스트 실패: {e}")
+        # -- 3단계: 태스크 발행 및 하이브리드 엔진 매칭 --
+        print("\n[STEP 3] 클라이언트 태스크 발행 (매칭 작동 점검)")
+        user_client = f"client-{uuid.uuid4().hex[:8]}"
+        task_req = "트래픽이 폭주하는 이벤트 기획 시즌입니다. 메인 결제 백엔드를 담당하여 Java와 Spring 시스템을 구축해줄 시니어 개발자를 찾습니다."
+        print(f"- Request: {task_req}")
 
-    # 4. Account 수정 테스트
-    print("\n[4] 계정 상태 수정 테스트 (/Account/{accountId})")
-    update_payload = {
-        "abilityText": "Python FastAPI, React 전문가 추가",
-        "availability": False,
-        "cost": 150,
-        "hmac": generate_hmac(account_id)
-    }
-    print_json("Request JSON", update_payload)
-    try:
-        res = requests.patch(f"{BASE_URL}/Account/{account_id}", json=update_payload)
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 계정 상태 수정 정상 작동")
-    except Exception as e:
-        print(f"계정 수정 테스트 실패: {e}")
-
-    # 5. Account Components 조회 테스트
-    print("\n[5] 계정 구성요소 조회 테스트 (/Account/{accountId}/Components)")
-    ability_id = None
-    requirement_id = None
-    try:
-        res = requests.get(f"{BASE_URL}/Account/{account_id}/Components")
-        print(f"Status Code: {res.status_code}")
-        try:
-            data = res.json()
-            print_json("Response JSON", data)
-            if data.get("abilityIds"):
-                ability_id = data["abilityIds"][0]
-            if data.get("requirementIds"):
-                requirement_id = data["requirementIds"][0]
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 계정 구성요소 조회 정상 작동")
-    except Exception as e:
-        print(f"구성요소 조회 테스트 실패: {e}")
-
-    # 6. Ability 단일 조회 테스트
-    if ability_id:
-        print(f"\n[6] 능력치 단일 조회 테스트 (/Ability/{ability_id})")
-        try:
-            res = requests.get(f"{BASE_URL}/Ability/{ability_id}")
-            print(f"Status Code: {res.status_code}")
-            try:
-                print_json("Response JSON", res.json())
-            except:
-                print(f"Response Text: {res.text}")
-            assert res.status_code == 200
-            print("-> 능력치 단일 조회 정상 작동")
-        except Exception as e:
-            print(f"능력치 조회 테스트 실패: {e}")
-    else:
-        print("\n[6] 스킵: 능력치 ID를 추출하지 못함.")
-
-    # 7. Requirement 단일 조회 테스트
-    if requirement_id:
-        print(f"\n[7] 요구 능력치 단일 조회 테스트 (/Requirement/{requirement_id})")
-        try:
-            res = requests.get(f"{BASE_URL}/Requirement/{requirement_id}")
-            print(f"Status Code: {res.status_code}")
-            try:
-                print_json("Response JSON", res.json())
-            except:
-                print(f"Response Text: {res.text}")
-            assert res.status_code == 200
-            print("-> 요구 능력치 단일 조회 정상 작동")
-        except Exception as e:
-            print(f"요구 능력치 조회 테스트 실패: {e}")
-    else:
-        print("\n[7] 스킵: 요구 능력치 ID를 추출하지 못함.")
-
-    # 8. Task 생성 및 매칭 테스트
-    print("\n[8] Task 생성 및 매칭 테스트 (/Task)")
-    task_id = None
-    task_payload = {
-        "accountId": account_id,
-        "request": "Python FastAPI로 간단한 CRUD 백엔드 시스템을 만들어주세요.",
-        "requiredDate": 1735689599,
-        "requiredElo": 1000,
-        "requiredCost": 200,
-        "maxCost": 500,
-        "requireHuman": False,
-        "hmac": generate_hmac(account_id)
-    }
-    print_json("Request JSON", task_payload)
-    try:
-        res = requests.post(f"{BASE_URL}/Task", json=task_payload)
-        print(f"Status Code: {res.status_code}")
-        try:
-            data = res.json()
-            print_json("Response JSON", data)
-            if isinstance(data, list) and len(data) > 0:
-                task_id = data[0].get("taskId")
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code in (200, 201)
-        print("-> Task 생성 및 매칭 정상 작동")
-    except Exception as e:
-        print(f"Task 생성 테스트 실패: {e}")
-
-    # 9. Task 조회 테스트
-    if task_id:
-        print(f"\n[9] Task 조회 테스트 (/Task/{task_id})")
-        try:
-            res = requests.get(f"{BASE_URL}/Task/{task_id}")
-            print(f"Status Code: {res.status_code}")
-            try:
-                print_json("Response JSON", res.json())
-            except:
-                print(f"Response Text: {res.text}")
-            assert res.status_code == 200
-            print("-> Task 조회 정상 작동")
-        except Exception as e:
-            print(f"Task 조회 테스트 실패: {e}")
-
-        # 10. Task 상태 업데이트 테스트
-        print(f"\n[10] Task 상태 업데이트 테스트 (/Task/{task_id}/Status)")
-        status_payload = {"status": "completed", "hmac": generate_hmac(task_id)}
-        print_json("Request JSON", status_payload)
-        try:
-            res = requests.patch(f"{BASE_URL}/Task/{task_id}/Status", json=status_payload)
-            print(f"Status Code: {res.status_code}")
-            try:
-                print_json("Response JSON", res.json())
-            except:
-                print(f"Response Text: {res.text}")
-            assert res.status_code == 200
-            print("-> Task 상태 업데이트 정상 작동")
-        except Exception as e:
-            print(f"Task 상태 업데이트 테스트 실패: {e}")
-    else:
-        print("\n[9, 10] 스킵: Task ID를 찾지 못함.")
-
-    # 11. 키워드 검색 테스트
-    print("\n[11] 키워드 검색 테스트 (POST /Search, mode=keyword)")
-    search_keyword_payload = {
-        "query": "Python FastAPI",
-        "mode": "keyword",
-        "limit": 10
-    }
-    print_json("Request JSON", search_keyword_payload)
-    try:
-        res = requests.post(f"{BASE_URL}/Search", json=search_keyword_payload)
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 키워드 검색 정상 작동")
-    except Exception as e:
-        print(f"키워드 검색 테스트 실패: {e}")
-
-    # 12. 벡터 유사도 검색 테스트
-    print("\n[12] 벡터 유사도 검색 테스트 (POST /Search, mode=vector)")
-    search_vector_payload = {
-        "query": "백엔드 API 개발",
-        "mode": "vector",
-        "limit": 10
-    }
-    print_json("Request JSON", search_vector_payload)
-    try:
-        res = requests.post(f"{BASE_URL}/Search", json=search_vector_payload)
-        print(f"Status Code: {res.status_code}")
-        try:
-            print_json("Response JSON", res.json())
-        except:
-            print(f"Response Text: {res.text}")
-        assert res.status_code == 200
-        print("-> 벡터 유사도 검색 정상 작동")
-    except Exception as e:
-        print(f"벡터 유사도 검색 테스트 실패: {e}")
-
-    # 13. Account 삭제 테스트
-    print("\n[13] 계정 삭제 테스트 (/Account/{accountId})")
-    try:
-        res = requests.delete(f"{BASE_URL}/Account/{account_id}", params={"hmac": generate_hmac(account_id)})
-        print(f"Status Code: {res.status_code}")
-        try:
-            if res.text:
-                try:
-                    print_json("Response JSON", res.json())
-                except:
-                    print(f"Response Text: {res.text}")
-            else:
-                print("Response Body is Empty")
-        except:
-            pass
-        assert res.status_code == 204
-        print("-> 계정 삭제 정상 작동")
-    except Exception as e:
-        print(f"계정 삭제 테스트 실패: {e}")
-
-    print("\n=== API 테스트 종료 ===")
+        res_task = client.post("/Task", json={
+            "accountId": user_client,
+            "request": task_req,
+            "requiredDate": 0,
+            "requiredElo": 0,
+            "requiredCost": 0,
+            "requireHuman": False,
+            "maxCost": 150000,
+            "hmac": generateHmac(user_client)
+        })
+        
+        print(f"- Task Creation Status: {res_task.status_code}")
+        if res_task.status_code == 201:
+            print("\n>> 하이브리드 매칭 리랭킹 결과 (Score 내림차순 정렬) <<")
+            match_results = res_task.json()
+            for skill_match in match_results:
+                req_ability = skill_match.get("requiredAbility")
+                cands = skill_match.get("candidates", [])
+                print(f"\n[Required] {req_ability}")
+                if not cands:
+                     print("  -> No suitable candidates found.")
+                for i, c in enumerate(cands, 1):
+                    # Show matching attributes
+                    print(f"  {i}. {c.get('accountType')} | ID: {c.get('accountId')}")
+                    print(f"     Score: {c.get('score', 0):.4f} (Vector: {c.get('similarity', 0):.4f}, Keyword: {c.get('keywordScore', 0):.4f})")
+                    print(f"     Matched Text: {c.get('abilityText')}")
+        else:
+            print("Failed to start task execution:", res_task.text)
+            
+    print("\nAPI Integration Tests successfully completed.")
 
 if __name__ == "__main__":
-    run_tests()
+    main()

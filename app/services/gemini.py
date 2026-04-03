@@ -26,33 +26,47 @@ SPLITTING_MODELS = [
 EMBEDDING_MODEL = "gemini-embedding-2-preview"
 
 DECOMPOSE_SYSTEM = (
-    "You are a strict skill decomposition engine. "
-    "Given a description of someone's abilities, break it down into a JSON array of distinct, highly cohesive technical skills. "
+    "You are a strict skill decomposition engine utilizing CoT. "
+    "Given a description of someone's abilities, break it down into a JSON array of objects representing technical skills. "
     "CRITICAL CONSTRAINTS: "
-    "1. ONLY extract skills explicitly mentioned in the text. DO NOT infer, assume, or hallucinate unmentioned skills (e.g., if 'Figma' is mentioned, do not assume 'Wireframing' unless stated). "
-    "2. Transform each extracted skill into a FULL, DESCRIPTIVE SENTENCE in Korean that explains the capability. "
-    "Example format: ['안정적인 대용량 트래픽 처리를 위한 백엔드 API 서버 설계 및 구축 역량'] "
-    "Return ONLY the JSON array, no other text."
+    "1. ONLY extract skills explicitly mentioned in the text. DO NOT infer, assume, or hallucinate unmentioned skills. "
+    "2. Return an array of JSON objects with the following keys: "
+    "'abilityText' (A descriptive SENTENCE in Korean), 'domain' (String or null), "
+    "'job' (Must be one of: [웹 프론트엔드 개발자, 서버/백엔드 개발자, 모바일 앱 개발자, 응용 소프트웨어 개발자, 인프라/데브옵스 엔지니어, 데이터 엔지니어, 데이터 사이언티스트, AI/머신러닝 엔지니어, QA 엔지니어, 보안 엔지니어, 프로덕트/프로젝트 매니저, UI/UX 디자이너] or null), "
+    "'proficiency' (Must be one of: [신입, 주니어, 미들, 시니어, 리드] or null), "
+    "'techStack' (Array of Strings. ALWAYS standard format: lowercase, remove all whitespace e.g., 'spring boot' -> 'springboot'), "
+    "'legacyDegree' (Must be one of: [없음, 낮음, 중간, 높음] or null). "
+    "Example format: [{\"abilityText\": \"대규모 트래픽 처리를 위한 백엔드 구축 역량\", \"domain\": \"이커머스\", \"job\": \"서버/백엔드 개발자\", \"proficiency\": \"미들\", \"techStack\": [\"java\", \"springboot\"], \"legacyDegree\": \"없음\"}] "
+    "Return ONLY the JSON array."
 )
 DECOMPOSE_TEMP = 0.2
 
 REQUIREMENT_SYSTEM = (
-    "You are a requirement analysis engine. "
+    "You are a requirement analysis engine utilizing CoT. "
     "Given an asset description, determine the single most essential human/agent skill needed. "
-    "CRITICAL: Return a JSON array containing EXACTLY ONE full, descriptive sentence in Korean. "
-    "This sentence must describe both the required technical skill and the context/purpose of its use. "
-    "Example format: ['데이터베이스 성능 최적화 및 관리를 위한 PostgreSQL 튜닝 및 운영 역량'] "
-    "Do not return isolated words. Return ONLY the JSON array, no other text."
+    "CRITICAL: Return a JSON array containing EXACTLY ONE JSON object. "
+    "The object must contain: "
+    "'abilityText' (Descriptive sentence), 'domain', "
+    "'job' (From: [웹 프론트엔드 개발자, 서버/백엔드 개발자, 모바일 앱 개발자, 응용 소프트웨어 개발자, 인프라/데브옵스 엔지니어, 데이터 엔지니어, 데이터 사이언티스트, AI/머신러닝 엔지니어, QA 엔지니어, 보안 엔지니어, 프로덕트/프로젝트 매니저, UI/UX 디자이너] or null), "
+    "'proficiency' (From: [신입, 주니어, 미들, 시니어, 리드] or null), "
+    "'techStack' (Array of Strings. ALWAYS lowercase and remove whitespace e.g., 'react js' -> 'reactjs'), "
+    "'legacyDegree' (From: [없음, 낮음, 중간, 높음] or null). "
+    "Example: [{\"abilityText\": \"데이터베이스 성능 최적화를 위한 PostgreSQL 운영 역량\", \"domain\": null, \"job\": \"데이터 엔지니어\", \"proficiency\": \"시니어\", \"techStack\": [\"postgresql\"], \"legacyDegree\": \"낮음\"}] "
+    "Return ONLY the JSON array."
 )
 REQUIREMENT_TEMP = 0.3
 
 TASK_DECOMPOSE_SYSTEM = (
-    "You are a task analysis engine. "
-    "Given a task request, break it down into a JSON array of specific capabilities needed to complete the task. "
-    "CRITICAL: Do NOT use isolated keywords. Write each required capability as a FULL, DESCRIPTIVE SENTENCE in Korean "
-    "representing what the ideal candidate must be able to do to fulfill this specific task context. "
-    "Example format: ['사용자 결제 데이터의 안전한 처리를 위한 블록체인 스마트 컨트랙트 개발 역량', 'Figma를 활용한 직관적인 모바일 앱 화면 기획 및 디자인 역량'] "
-    "Return ONLY the JSON array, no other text."
+    "You are a task analysis engine utilizing CoT. "
+    "Given a task request, break it down into a JSON array of capability objects needed to complete the task. "
+    "Each object must contain keys: "
+    "'abilityText' (Descriptive sentence), 'domain', "
+    "'job' (From: [웹 프론트엔드 개발자, 서버/백엔드 개발자, 모바일 앱 개발자, 응용 소프트웨어 개발자, 인프라/데브옵스 엔지니어, 데이터 엔지니어, 데이터 사이언티스트, AI/머신러닝 엔지니어, QA 엔지니어, 보안 엔지니어, 프로덕트/프로젝트 매니저, UI/UX 디자이너] or null), "
+    "'proficiency' (From: [신입, 주니어, 미들, 시니어, 리드] or null), "
+    "'techStack' (Array of Strings. ALWAYS lowercase and remove whitespace e.g., 'react js' -> 'reactjs'. 테크 스택은 사용자의 요구사항에서 명확히 유추할 수 있는 필수 기술로만 제한하라.), "
+    "'legacyDegree' (From: [없음, 낮음, 중간, 높음] or null). "
+    "Example: [{\"abilityText\": \"사용자 결제 데이터의 안전한 처리를 위한 블록체인 역량\", \"domain\": \"핀테크\", \"job\": \"서버/백엔드 개발자\", \"proficiency\": \"리드\", \"techStack\": [\"solidity\"], \"legacyDegree\": \"없음\"}] "
+    "Return ONLY the JSON array."
 )
 TASK_DECOMPOSE_TEMP = 0.5
 
@@ -110,18 +124,18 @@ async def _retryOnQuota(fn, is_embedding=False, text=""):
                     detail=f"Gemini API {errorType} 실패: {str(e)}"
                 )
 
-async def decomposeAbilities(text: str) -> list[str]:
-    """능력치 원문 → 단일 능력치 리스트 (정확도 우선, low temperature)."""
+async def decomposeAbilities(text: str) -> list[dict]:
+    """능력치 원문 → 단일 능력치 객체 리스트 (정확도 우선, low temperature)."""
     response = await _generateWithFallback(text, DECOMPOSE_SYSTEM, DECOMPOSE_TEMP)
     return _parseJsonArray(response.text)
 
-async def decomposeRequirements(text: str) -> list[str]:
-    """에셋 설명 → 요구 능력치 리스트."""
+async def decomposeRequirements(text: str) -> list[dict]:
+    """에셋 설명 → 요구 능력치 객체 리스트."""
     response = await _generateWithFallback(text, REQUIREMENT_SYSTEM, REQUIREMENT_TEMP)
     return _parseJsonArray(response.text)
 
-async def decomposeTaskRequest(text: str) -> list[str]:
-    """태스크 요청 → 필요 능력치 리스트 (다양성 위해 mid temperature)."""
+async def decomposeTaskRequest(text: str) -> list[dict]:
+    """태스크 요청 → 필요 능력치 객체 리스트 (다양성 위해 mid temperature)."""
     response = await _generateWithFallback(text, TASK_DECOMPOSE_SYSTEM, TASK_DECOMPOSE_TEMP)
     return _parseJsonArray(response.text)
 
@@ -144,7 +158,9 @@ async def embedTexts(texts: list[str]) -> list[list[float]]:
         results.append(await embedText(t))
     return results
 
-def _parseJsonArray(text: str) -> list[str]:
+import re
+
+def _parseJsonArray(text: str) -> list[dict]:
     """AI 응답에서 JSON 배열 파싱."""
     cleaned = text.strip()
     # 마크다운 코드블럭 제거
@@ -156,8 +172,14 @@ def _parseJsonArray(text: str) -> list[str]:
     try:
         parsed = json.loads(cleaned)
         if isinstance(parsed, list):
-            return [str(item) for item in parsed]
+            result = []
+            for item in parsed:
+                if isinstance(item, dict):
+                    # 기술 스택은 프롬프트 지시와 더불어 Python 파이프로도 완전 정규화
+                    if 'techStack' in item and isinstance(item['techStack'], list):
+                        item['techStack'] = [re.sub(r'\s+', '', str(ts).lower()) for ts in item['techStack']]
+                    result.append(item)
+            return result
     except json.JSONDecodeError:
         pass
-    # 폴백: 줄 단위 파싱
-    return [line.strip().strip('"-,') for line in text.strip().splitlines() if line.strip()]
+    return []

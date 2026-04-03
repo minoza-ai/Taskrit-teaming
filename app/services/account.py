@@ -41,32 +41,42 @@ async def _rebuildVectors(db: AsyncIOMotorDatabase, userUuid: str, accountType: 
 
     skills = await gemini.decomposeAbilities(sourceText)
     if skills:
-        vectors = await gemini.embedTexts(skills)
-        for skillText, vector in zip(skills, vectors):
+        texts_to_embed = [s.get("abilityText", "") for s in skills]
+        vectors = await gemini.embedTexts(texts_to_embed)
+        for skillObj, vector in zip(skills, vectors):
             abilityId = str(uuid.uuid4())
-            await db.abilities.insert_one(
-                {
-                    "abilityId": abilityId,
-                    "user_uuid": userUuid,
-                    "abilityText": skillText,
-                }
-            )
+            doc = {
+                "abilityId": abilityId,
+                "user_uuid": userUuid,
+                "abilityText": skillObj.get("abilityText", ""),
+                "domain": skillObj.get("domain"),
+                "job": skillObj.get("job"),
+                "proficiency": skillObj.get("proficiency"),
+                "techStack": skillObj.get("techStack", []),
+                "legacyDegree": skillObj.get("legacyDegree"),
+            }
+            await db.abilities.insert_one(doc)
             qdrantService.upsertAbility(abilityId, userUuid, vector)
 
     if accountType == "asset":
         reqs = await gemini.decomposeRequirements(sourceText)
         if reqs:
             reqs = reqs[:1]
-            reqVectors = await gemini.embedTexts(reqs)
-            for reqText, vector in zip(reqs, reqVectors):
+            texts_to_embed = [r.get("abilityText", "") for r in reqs]
+            reqVectors = await gemini.embedTexts(texts_to_embed)
+            for reqObj, vector in zip(reqs, reqVectors):
                 requirementId = str(uuid.uuid4())
-                await db.requirements.insert_one(
-                    {
-                        "requirementId": requirementId,
-                        "user_uuid": userUuid,
-                        "abilityText": reqText,
-                    }
-                )
+                doc = {
+                    "requirementId": requirementId,
+                    "user_uuid": userUuid,
+                    "abilityText": reqObj.get("abilityText", ""),
+                    "domain": reqObj.get("domain"),
+                    "job": reqObj.get("job"),
+                    "proficiency": reqObj.get("proficiency"),
+                    "techStack": reqObj.get("techStack", []),
+                    "legacyDegree": reqObj.get("legacyDegree"),
+                }
+                await db.requirements.insert_one(doc)
                 qdrantService.upsertRequirement(requirementId, userUuid, vector)
 
 async def createAccount(

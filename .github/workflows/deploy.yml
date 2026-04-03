@@ -62,6 +62,14 @@ jobs:
             echo "::error::Missing required secret: HMAC_KEY"
             exit 1
           fi
+          if [ -z "${{ secrets.MONGODB_USER }}" ]; then
+            echo "::error::Missing required secret: MONGODB_USER"
+            exit 1
+          fi
+          if [ -z "${{ secrets.MONGODB_PASSWORD }}" ]; then
+            echo "::error::Missing required secret: MONGODB_PASSWORD"
+            exit 1
+          fi
           if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "::error::Missing required secret: SSH_PRIVATE_KEY"
             exit 1
@@ -111,7 +119,7 @@ jobs:
               -e TZ=Asia/Seoul \
               -e GEMINI_API="${{ secrets.GEMINI_API }}" \
               -e HMAC_KEY="${{ secrets.HMAC_KEY }}" \
-              -e MONGODB_URI="mongodb://mongo:27017" \
+              -e MONGODB_URI="mongodb://${{ secrets.MONGODB_USER }}:${{ secrets.MONGODB_PASSWORD }}@taskrit-mongodb:27017/taskrit?authSource=admin" \
               -e MONGODB_DB="taskrit" \
               -v ~/taskrit_data/teaming/qdrant_data:/app/qdrant_data \
               "${{ env.IMAGE_NAME }}:latest"

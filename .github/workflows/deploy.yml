@@ -110,6 +110,7 @@ jobs:
             
             # Start container
             # Mapping ~/taskrit_data/teaming/qdrant_data -> /app/qdrant_data
+            RUNTIME_HMAC_KEY="$(printf '%s' "${{ secrets.HMAC_KEY }}" | tr -d '\r\n')"
             
             docker run -d \
               --name "${{ env.CONTAINER_NAME }}" \
@@ -118,7 +119,7 @@ jobs:
               -p 3002:3002 \
               -e TZ=Asia/Seoul \
               -e GEMINI_API="${{ secrets.GEMINI_API }}" \
-              -e HMAC_KEY="${{ secrets.HMAC_KEY }}" \
+              -e HMAC_KEY="$RUNTIME_HMAC_KEY" \
               -e MONGODB_URI="mongodb://${{ secrets.MONGODB_USER }}:${{ secrets.MONGODB_PASSWORD }}@taskrit-mongodb:27017/taskrit?authSource=admin" \
               -e MONGODB_DB="taskrit" \
               -v ~/taskrit_data/teaming/qdrant_data:/app/qdrant_data \

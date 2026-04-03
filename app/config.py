@@ -12,7 +12,7 @@ class Settings:
     mongoDbName: str = os.getenv("MONGODB_DB", "taskrit")
     qdrantHost: str = os.getenv("QDRANT_HOST", "localhost")
     qdrantPort: int = int(os.getenv("QDRANT_PORT", "6333"))
-    hmacKey: str = os.getenv("HMAC_KEY", "")
+    hmacKey: str = os.getenv("HMAC_KEY", "").strip()
     embeddingDim: int = 3072  # Gemini embedding dimension
 
 settings = Settings()

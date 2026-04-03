@@ -1,16 +1,21 @@
 """Taskrit TeamingOn Engine — FastAPI 엔트리 포인트."""
 
 from contextlib import asynccontextmanager
+import hashlib
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from app.database import closeDb, initDb
+from app.config import settings
 from app.routers import account, ability, task, search
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """서버 시작 시 DB 테이블 생성."""
+    hmac_key = settings.hmacKey or ""
+    hmac_fingerprint = hashlib.sha256(hmac_key.encode()).hexdigest()[:12] if hmac_key else "unset"
+    print(f"[startup] HMAC fingerprint: {hmac_fingerprint}")
     await initDb()
     yield
     await closeDb()
